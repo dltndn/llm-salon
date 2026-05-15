@@ -1,0 +1,12 @@
+# docs
+docs/
+
+# Agents files
+AGENTS.md
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
