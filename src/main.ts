@@ -5,6 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 
 import { prepareLlmSalonHome } from './config/config.bootstrap';
+import { loadEnvFileIntoProcessEnv } from './config/env.file';
 import { LLM_SALON_ENV_FILE_PATH_ENV } from './config/config.paths';
 import {
   resolveAutoMigrateFlag,
@@ -30,6 +31,7 @@ export async function bootstrap(
   const { homePath, envFilePath } = await prepareLlmSalonHome(process.env, stdout);
   process.env.LLM_SALON_HOME = homePath;
   process.env[LLM_SALON_ENV_FILE_PATH_ENV] = envFilePath;
+  await loadEnvFileIntoProcessEnv(envFilePath);
 
   if (resolveAutoMigrateFlag(argv, autoMigrate ?? listen)) {
     await runPrismaMigrateDeploy();
