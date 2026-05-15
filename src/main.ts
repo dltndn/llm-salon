@@ -11,6 +11,7 @@ import {
   resolveAutoMigrateEnabled,
   runPrismaMigrateDeploy,
 } from './prisma/prisma.migrate';
+import { bindWithPortRetry } from './startup/port.binding';
 
 type BootstrapOptions = {
   autoMigrate?: boolean;
@@ -28,12 +29,23 @@ export async function bootstrap(
     listen = true,
     stdout = console,
   } = options;
-  const { homePath, envFilePath } = await prepareLlmSalonHome(process.env, stdout);
+  const { homePath, envFilePath, createdEnvFile } = await prepareLlmSalonHome(
+    process.env,
+    stdout,
+  );
   process.env.LLM_SALON_HOME = homePath;
   process.env[LLM_SALON_ENV_FILE_PATH_ENV] = envFilePath;
   await loadEnvFileIntoProcessEnv(envFilePath);
 
-  if (resolveAutoMigrateEnabled(argv, autoMigrate)) {
+  const autoMigrateEnabled = resolveAutoMigrateEnabled(argv, autoMigrate);
+  const shouldSkipFirstBootMigrate =
+    createdEnvFile && !process.env.DATABASE_URL && autoMigrateEnabled;
+
+  if (shouldSkipFirstBootMigrate) {
+    stdout.log(
+      `Skipping Prisma migrate deploy for this first boot because ${envFilePath} was just created and DATABASE_URL is not set. Add DATABASE_URL to ${envFilePath} and restart the server.`,
+    );
+  } else if (autoMigrateEnabled) {
     await runPrismaMigrateDeploy();
   }
 
@@ -44,7 +56,11 @@ export async function bootstrap(
     const configService = app.get(ConfigService);
     const port = configService.get<number>('LLM_SALON_PORT', 4477);
 
-    await app.listen(port, '127.0.0.1');
+    await bindWithPortRetry(
+      (candidatePort, host) => app.listen(candidatePort, host),
+      port,
+      '127.0.0.1',
+    );
   }
 
   return app;
