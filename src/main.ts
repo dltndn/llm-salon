@@ -8,7 +8,7 @@ import { prepareLlmSalonHome } from './config/config.bootstrap';
 import { loadEnvFileIntoProcessEnv } from './config/env.file';
 import { LLM_SALON_ENV_FILE_PATH_ENV } from './config/config.paths';
 import {
-  resolveAutoMigrateFlag,
+  resolveAutoMigrateEnabled,
   runPrismaMigrateDeploy,
 } from './prisma/prisma.migrate';
 
@@ -33,7 +33,7 @@ export async function bootstrap(
   process.env[LLM_SALON_ENV_FILE_PATH_ENV] = envFilePath;
   await loadEnvFileIntoProcessEnv(envFilePath);
 
-  if (resolveAutoMigrateFlag(argv, autoMigrate ?? listen)) {
+  if (resolveAutoMigrateEnabled(argv, autoMigrate)) {
     await runPrismaMigrateDeploy();
   }
 

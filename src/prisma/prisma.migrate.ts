@@ -4,6 +4,13 @@ import { resolve } from 'node:path';
 
 const execFileAsync = promisify(execFile);
 
+export function resolveAutoMigrateEnabled(
+  argv: readonly string[],
+  autoMigrate?: boolean,
+): boolean {
+  return resolveAutoMigrateFlag(argv, autoMigrate ?? true);
+}
+
 export function resolveAutoMigrateFlag(
   argv: readonly string[],
   defaultValue: boolean,

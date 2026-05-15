@@ -23,7 +23,7 @@ describe('AppConfigModule boot integration', () => {
 
     try {
       const { bootstrap } = await import('../../main');
-      const app = await bootstrap({ listen: false, stdout });
+      const app = await bootstrap({ autoMigrate: false, listen: false, stdout });
 
       const envContents = await readFile(join(tempRoot, '.env'), 'utf8');
       expect(envContents).toContain('OPENAI_API_KEY=');
@@ -53,7 +53,7 @@ describe('AppConfigModule boot integration', () => {
       await writeFile(join(tempRoot, '.env'), existingEnvContents, 'utf8');
 
       const { bootstrap } = await import('../../main');
-      const app = await bootstrap({ listen: false, stdout });
+      const app = await bootstrap({ autoMigrate: false, listen: false, stdout });
 
       const envContents = await readFile(join(tempRoot, '.env'), 'utf8');
       expect(envContents).toBe(existingEnvContents);

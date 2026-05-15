@@ -1,4 +1,17 @@
-import { resolveAutoMigrateFlag } from './prisma.migrate';
+import {
+  resolveAutoMigrateEnabled,
+  resolveAutoMigrateFlag,
+} from './prisma.migrate';
+
+describe('resolveAutoMigrateEnabled', () => {
+  it('defaults auto-migrate to on when no explicit option is provided', () => {
+    expect(resolveAutoMigrateEnabled([], undefined)).toBe(true);
+  });
+
+  it('allows the explicit option to disable auto-migrate by default', () => {
+    expect(resolveAutoMigrateEnabled([], false)).toBe(false);
+  });
+});
 
 describe('resolveAutoMigrateFlag', () => {
   it('defaults to the provided value when no flags are set', () => {

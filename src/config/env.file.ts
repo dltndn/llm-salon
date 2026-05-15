@@ -3,14 +3,24 @@ import { readFile } from 'node:fs/promises';
 function parseEnvValue(rawValue: string): string {
   const trimmedValue = rawValue.trim();
 
-  if (
-    (trimmedValue.startsWith('"') && trimmedValue.endsWith('"')) ||
-    (trimmedValue.startsWith("'") && trimmedValue.endsWith("'"))
-  ) {
-    return trimmedValue.slice(1, -1);
+  const quoteCharacter = trimmedValue[0];
+
+  if (quoteCharacter === '"' || quoteCharacter === "'") {
+    for (let index = 1; index < trimmedValue.length; index += 1) {
+      if (
+        trimmedValue[index] === quoteCharacter &&
+        trimmedValue[index - 1] !== '\\'
+      ) {
+        return trimmedValue.slice(1, index);
+      }
+    }
   }
 
-  return trimmedValue;
+  const commentIndex = trimmedValue.indexOf(' #');
+
+  return commentIndex >= 0
+    ? trimmedValue.slice(0, commentIndex).trimEnd()
+    : trimmedValue;
 }
 
 export async function loadEnvFileIntoProcessEnv(

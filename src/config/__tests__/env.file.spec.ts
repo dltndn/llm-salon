@@ -34,4 +34,26 @@ describe('loadEnvFileIntoProcessEnv', () => {
       await rm(tempRoot, { recursive: true, force: true });
     }
   });
+
+  it('preserves quoted DATABASE_URL values when followed by an inline comment', async () => {
+    const tempRoot = await mkdtemp(join(tmpdir(), 'llm-salon-env-file-'));
+    const envFilePath = join(tempRoot, '.env');
+    const env: NodeJS.ProcessEnv = {};
+
+    try {
+      await writeFile(
+        envFilePath,
+        'DATABASE_URL="postgresql://user:pa#ss@127.0.0.1:5432/db?schema=public" # local db\n',
+        'utf8',
+      );
+
+      await loadEnvFileIntoProcessEnv(envFilePath, env);
+
+      expect(env.DATABASE_URL).toBe(
+        'postgresql://user:pa#ss@127.0.0.1:5432/db?schema=public',
+      );
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
+  });
 });
