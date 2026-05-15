@@ -6,3 +6,219 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum ParticipantType {
+  app      @map("app")
+  provider @map("provider")
+
+  @@map("participant_type")
+}
+
+enum ParticipantStatus {
+  active   @map("active")
+  waiting  @map("waiting")
+  inactive @map("inactive")
+  removed  @map("removed")
+
+  @@map("participant_status")
+}
+
+enum ProjectStatus {
+  created   @map("created")
+  active    @map("active")
+  drafting  @map("drafting")
+  reviewing @map("reviewing")
+  finalized @map("finalized")
+  closed    @map("closed")
+
+  @@map("project_status")
+}
+
+enum TopicPhase {
+  preparing  @map("preparing")
+  debating   @map("debating")
+  drafting   @map("drafting")
+  reviewing  @map("reviewing")
+  finalizing @map("finalizing")
+  finalized  @map("finalized")
+  closed     @map("closed")
+
+  @@map("topic_phase")
+}
+
+enum TopicMode {
+  consensus @map("consensus")
+  options   @map("options")
+
+  @@map("topic_mode")
+}
+
+enum TurnStatus {
+  idle        @map("idle")
+  in_progress @map("in_progress")
+  completed   @map("completed")
+  skipped     @map("skipped")
+
+  @@map("turn_status")
+}
+
+enum ReportStatus {
+  none        @map("none")
+  drafting    @map("drafting")
+  draft_ready @map("draft_ready")
+  reviewing   @map("reviewing")
+  finalizing  @map("finalizing")
+  finalized   @map("finalized")
+
+  @@map("report_status")
+}
+
+enum MessageKind {
+  statement    @map("statement")
+  feedback     @map("feedback")
+  report_draft @map("report_draft")
+  report_final @map("report_final")
+  system       @map("system")
+
+  @@map("message_kind")
+}
+
+model Project {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug         String        @unique
+  name         String
+  status       ProjectStatus @default(created)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  topics       Topic[]
+  participants Participant[]
+  documents    Document[]
+  messages     Message[]
+  turns        Turn[]
+  reports      Report[]
+
+  @@map("projects")
+}
+
+model Topic {
+  id                    String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId             String       @map("project_id") @db.Uuid
+  title                 String
+  description           String?
+  mode                  TopicMode    @default(consensus)
+  phase                 TopicPhase   @default(preparing)
+  maxRounds             Int?         @map("max_rounds")
+  maxTurns              Int?         @map("max_turns")
+  currentRound          Int          @default(0) @map("current_round")
+  currentTurnIndex      Int          @default(0) @map("current_turn_index")
+  reporterParticipantId String?      @map("reporter_participant_id") @db.Uuid
+  createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  project               Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reporterParticipant   Participant? @relation("TopicReporter", fields: [reporterParticipantId], references: [id], onDelete: Cascade)
+  documents             Document[]
+  messages              Message[]
+  turns                 Turn[]
+  reports               Report[]
+
+  @@map("topics")
+}
+
+model Participant {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId       String            @map("project_id") @db.Uuid
+  displayName     String            @map("display_name")
+  anonymousName   String            @map("anonymous_name")
+  participantType ParticipantType   @map("participant_type")
+  providerName    String?           @map("provider_name")
+  modelName       String?           @map("model_name")
+  clientName      String?           @map("client_name")
+  status          ParticipantStatus @default(waiting)
+  joinOrder       Int               @map("join_order")
+  joinedAt        DateTime          @default(now()) @map("joined_at") @db.Timestamptz(6)
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  messages        Message[]
+  currentTurns    Turn[]            @relation("CurrentParticipantTurns")
+  reportTopics    Topic[]           @relation("TopicReporter")
+  reports         Report[]
+
+  @@unique([projectId, anonymousName])
+  @@index([projectId, joinOrder])
+  @@map("participants")
+}
+
+model Document {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId   String   @map("project_id") @db.Uuid
+  topicId     String?  @map("topic_id") @db.Uuid
+  fileName    String   @map("file_name")
+  filePath    String   @map("file_path")
+  mimeType    String   @map("mime_type")
+  sizeBytes   BigInt   @map("size_bytes")
+  contentHash String   @map("content_hash")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  topic       Topic?   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@map("documents")
+}
+
+model Message {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId     String      @map("project_id") @db.Uuid
+  topicId       String      @map("topic_id") @db.Uuid
+  participantId String      @map("participant_id") @db.Uuid
+  kind          MessageKind @default(statement)
+  turnIndex     Int         @map("turn_index")
+  roundIndex    Int         @map("round_index")
+  phase         TopicPhase
+  content       String
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  topic         Topic       @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@index([topicId, createdAt])
+  @@index([topicId, turnIndex, roundIndex])
+  @@map("messages")
+}
+
+model Turn {
+  id                   String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId            String       @map("project_id") @db.Uuid
+  topicId              String       @map("topic_id") @db.Uuid
+  currentParticipantId String?      @map("current_participant_id") @db.Uuid
+  turnIndex            Int          @map("turn_index")
+  roundIndex           Int          @map("round_index")
+  phase                TopicPhase
+  status               TurnStatus   @default(idle)
+  createdAt            DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  project              Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  topic                Topic        @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  currentParticipant   Participant? @relation("CurrentParticipantTurns", fields: [currentParticipantId], references: [id], onDelete: Cascade)
+
+  @@unique([topicId, turnIndex])
+  @@index([topicId, status])
+  @@map("turns")
+}
+
+model Report {
+  id                    String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  projectId             String       @map("project_id") @db.Uuid
+  topicId               String       @map("topic_id") @db.Uuid
+  reporterParticipantId String       @map("reporter_participant_id") @db.Uuid
+  status                ReportStatus @default(none)
+  draftContent          String?      @map("draft_content")
+  finalContent          String?      @map("final_content")
+  filePath              String?      @map("file_path")
+  createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  project               Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  topic                 Topic        @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  reporterParticipant   Participant  @relation(fields: [reporterParticipantId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
+}
