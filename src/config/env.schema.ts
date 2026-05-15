@@ -29,7 +29,11 @@ function readStringValue(value: unknown): string | undefined {
 }
 
 function isValidPort(value: string): boolean {
-  const port = Number.parseInt(value, 10);
+  if (!/^(?:0|[1-9]\d*)$/.test(value)) {
+    return false;
+  }
+
+  const port = Number(value);
   return Number.isInteger(port) && port >= 1 && port <= 65535;
 }
 
@@ -44,7 +48,7 @@ function normalizePort(
   }
 
   if (isValidPort(stringValue)) {
-    return `${Number.parseInt(stringValue, 10)}`;
+    return `${Number(stringValue)}`;
   }
 
   logger.warn(

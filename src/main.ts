@@ -4,7 +4,8 @@ import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 
-import { prepareLlmSalonHome } from './config/config.module';
+import { prepareLlmSalonHome } from './config/config.bootstrap';
+import { LLM_SALON_ENV_FILE_PATH_ENV } from './config/config.paths';
 
 type BootstrapOptions = {
   listen?: boolean;
@@ -15,8 +16,9 @@ export async function bootstrap(
   options: BootstrapOptions = {},
 ): Promise<INestApplication> {
   const { listen = true, stdout = console } = options;
-  const { homePath } = await prepareLlmSalonHome(process.env, stdout);
+  const { homePath, envFilePath } = await prepareLlmSalonHome(process.env, stdout);
   process.env.LLM_SALON_HOME = homePath;
+  process.env[LLM_SALON_ENV_FILE_PATH_ENV] = envFilePath;
 
   const { AppModule } = await import('./app.module');
   const app = await NestFactory.create(AppModule);

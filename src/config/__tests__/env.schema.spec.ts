@@ -29,4 +29,28 @@ describe('validateEnv', () => {
     );
     expect(logger.warn).toHaveBeenCalledTimes(3);
   });
+
+  it('rejects partial and decimal port values', () => {
+    const logger = {
+      warn: jest.fn(),
+    };
+
+    const partialPortEnv = validateEnv(
+      {
+        LLM_SALON_PORT: '4477abc',
+      },
+      logger,
+    );
+
+    const decimalPortEnv = validateEnv(
+      {
+        LLM_SALON_PORT: '1.5',
+      },
+      logger,
+    );
+
+    expect(partialPortEnv.LLM_SALON_PORT).toBe(`${DEFAULT_LLM_SALON_PORT}`);
+    expect(decimalPortEnv.LLM_SALON_PORT).toBe(`${DEFAULT_LLM_SALON_PORT}`);
+    expect(logger.warn).toHaveBeenCalledTimes(2);
+  });
 });
