@@ -11,4 +11,6 @@ AGENTS.md
 # OS files
 .DS_Store
 
-# test
+# Dependencies and build output
+node_modules/
+dist/
