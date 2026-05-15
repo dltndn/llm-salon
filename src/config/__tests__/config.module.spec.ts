@@ -2,10 +2,6 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { NestFactory } from '@nestjs/core';
-
-import { prepareLlmSalonHome } from '../config.module';
-
 describe('AppConfigModule boot integration', () => {
   const originalEnv = process.env;
 
@@ -26,18 +22,12 @@ describe('AppConfigModule boot integration', () => {
     };
 
     try {
-      const prepared = await prepareLlmSalonHome(process.env, stdout);
-
-      expect(prepared.createdEnvFile).toBe(true);
-      expect(stdout.log).toHaveBeenCalledTimes(1);
+      const { bootstrap } = await import('../../main');
+      const app = await bootstrap({ listen: false, stdout });
 
       const envContents = await readFile(join(tempRoot, '.env'), 'utf8');
       expect(envContents).toContain('OPENAI_API_KEY=');
-
-      const { AppModule } = await import('../../app.module');
-      const app = await NestFactory.createApplicationContext(AppModule, {
-        logger: false,
-      });
+      expect(stdout.log).toHaveBeenCalledTimes(1);
 
       await app.close();
     } finally {
