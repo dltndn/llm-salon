@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 
@@ -51,6 +51,13 @@ export async function bootstrap(
 
   const { AppModule } = await import('./app.module');
   const app = await NestFactory.create(AppModule);
+  app.useGlobalPipes(
+    new ValidationPipe({
+      forbidNonWhitelisted: true,
+      transform: true,
+      whitelist: true,
+    }),
+  );
 
   if (listen) {
     const configService = app.get(ConfigService);
