@@ -177,6 +177,7 @@ class InMemoryMessagesPrisma {
           this.messages.length + 1,
         ).padStart(12, '0')}`,
         createdAt: now,
+        participant: { displayName: 'Member A' },
         ...data,
       };
       this.messages.push(message);
@@ -212,11 +213,11 @@ class InMemoryMessagesPrisma {
 
   private participantFor(id: string | null) {
     if (id === participantAId) {
-      return { anonymousName: 'Member A' };
+      return { anonymousName: 'Member A', displayName: 'Member A' };
     }
 
     if (id === participantBId) {
-      return { anonymousName: 'Member B' };
+      return { anonymousName: 'Member B', displayName: 'Member B' };
     }
 
     return null;

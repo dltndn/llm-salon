@@ -7,6 +7,7 @@ import { MessagesModule } from './messages/messages.module';
 import { ParticipantsModule } from './participants/participants.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProjectsModule } from './projects/projects.module';
+import { SseModule } from './sse/sse.module';
 import { TopicsModule } from './topics/topics.module';
 import { TurnsModule } from './turns/turns.module';
 
@@ -20,6 +21,7 @@ import { TurnsModule } from './turns/turns.module';
     ParticipantsModule,
     TurnsModule,
     MessagesModule,
+    SseModule,
   ],
   controllers: [HealthController],
 })

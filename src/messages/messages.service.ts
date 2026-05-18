@@ -25,7 +25,10 @@ import {
 
 type MessageTransaction = Prisma.TransactionClient;
 type TurnWithParticipant = Turn & {
-  currentParticipant?: { anonymousName: string } | null;
+  currentParticipant: {
+    anonymousName: string;
+    displayName: string;
+  };
 };
 
 @Injectable()
@@ -64,11 +67,16 @@ export class MessagesService {
           phase: topic.phase,
           content: dto.content,
         },
+        include: {
+          participant: {
+            select: { displayName: true },
+          },
+        },
       });
 
       domainEvents.push({
         type: DOMAIN_EVENT.messageCreated,
-        payload: { projectId, topicId: topic.id, message },
+        payload: { projectId, projectSlug, topicId: topic.id, message },
       });
 
       if (phaseAfter === TopicPhase.drafting) {
@@ -76,13 +84,25 @@ export class MessagesService {
           where: { id: currentTurn.id },
           data: { status: TurnStatus.completed },
         });
-        await this.transitionTopic(tx, topic, phaseAfter, domainEvents);
+        await this.transitionTopic(
+          tx,
+          topic,
+          projectSlug,
+          phaseAfter,
+          domainEvents,
+        );
 
         return { message, nextTurn: null, phaseAfter };
       }
 
       if (phaseAfter !== topic.phase) {
-        await this.transitionTopic(tx, topic, phaseAfter, domainEvents);
+        await this.transitionTopic(
+          tx,
+          topic,
+          projectSlug,
+          phaseAfter,
+          domainEvents,
+        );
       }
 
       const createdTurns = await this.turnEngine.advanceFromCurrentTurn(tx, {
@@ -94,7 +114,7 @@ export class MessagesService {
       if (nextTurn) {
         domainEvents.push({
           type: DOMAIN_EVENT.turnChanged,
-          payload: { projectId, topicId: topic.id, turn: nextTurn },
+          payload: { projectId, projectSlug, topicId: topic.id, turn: nextTurn },
         });
       }
 
@@ -116,10 +136,10 @@ export class MessagesService {
     tx: MessageTransaction,
     projectSlug: string,
     topicId: string,
-  ): Promise<{ projectId: string; topic: Topic }> {
+  ): Promise<{ projectId: string; projectSlug: string; topic: Topic }> {
     const project = await tx.project.findUnique({
       where: { slug: projectSlug },
-      select: { id: true },
+      select: { id: true, slug: true },
     });
 
     if (!project) {
@@ -137,7 +157,7 @@ export class MessagesService {
       throw new NotFoundException(`Topic not found: ${topicId}`);
     }
 
-    return { projectId: project.id, topic };
+    return { projectId: project.id, projectSlug: project.slug, topic };
   }
 
   private async lockAndFindCurrentTurn(
@@ -165,10 +185,10 @@ export class MessagesService {
       where: { id: current.id },
       include: {
         currentParticipant: {
-          select: { anonymousName: true },
+          select: { anonymousName: true, displayName: true },
         },
       },
-    });
+    }) as Promise<TurnWithParticipant | null>;
   }
 
   private assertCurrentTurn(
@@ -266,6 +286,7 @@ export class MessagesService {
   private async transitionTopic(
     tx: MessageTransaction,
     topic: Topic,
+    projectSlug: string,
     phase: TopicPhase,
     domainEvents: DomainEvent[],
   ): Promise<void> {
@@ -279,7 +300,12 @@ export class MessagesService {
     });
     domainEvents.push({
       type: DOMAIN_EVENT.topicPhaseChanged,
-      payload: { projectId: topic.projectId, topicId: topic.id, phase },
+      payload: {
+        projectId: topic.projectId,
+        projectSlug,
+        topicId: topic.id,
+        phase,
+      },
     });
   }
 
@@ -306,9 +332,9 @@ export class MessagesService {
       where: { id: nextTurn.id },
       include: {
         currentParticipant: {
-          select: { anonymousName: true },
+          select: { anonymousName: true, displayName: true },
         },
       },
-    });
+    }) as Promise<TurnWithParticipant | null>;
   }
 }

@@ -14,7 +14,9 @@ export class DomainEventBus {
   on<T extends DomainEvent['type']>(
     type: T,
     listener: (payload: Extract<DomainEvent, { type: T }>['payload']) => void,
-  ): void {
+  ): () => void {
     this.emitter.on(type, listener);
+
+    return () => this.emitter.off(type, listener);
   }
 }
