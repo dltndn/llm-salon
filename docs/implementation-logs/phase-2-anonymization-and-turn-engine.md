@@ -68,3 +68,66 @@
 - For Task 2.2, preserve the global anonymous guard and use anonymous DTOs for any turn/context payload exposed to LLM-facing paths.
 - If adding new anonymous response keys, update the guard allowlist and add a focused test.
 - Keep anonymous conflict/error messages free of app, provider, client, and model identifiers.
+
+## Entry: 2026-05-18 Task 2.2
+
+**Worker context:**
+- Phase: Phase 2
+- Task: Task 2.2: Round-robin turn engine
+- Dependencies reviewed:
+  - Task 1.3
+  - Task 1.4
+  - Task 2.1
+  - Phase 1 log
+  - Phase 2 log
+  - `docs/specs/02-domain-model.md`
+  - `docs/specs/03-modules.md`
+  - `docs/specs/04-database.md`
+  - `docs/specs/10-testing.md`
+
+**What was done:**
+- Added `turns/` module and exported `TurnEngineService`.
+- Added a pure round-robin resolver that sorts by `joinOrder`, chooses active/waiting participants, records inactive/removed entries as skipped turns, increments `roundIndex` on wrap, and defers mid-round joins until the next round.
+- Added service-level advancement that locks the current turn in the public path, completes the current turn, creates skipped and next `in_progress` turn rows, and updates the topic pointer.
+- Added table-driven resolver tests and service tests for row updates and topic pointer updates.
+
+**Why it matters for the next worker:**
+- Task 2.3 can call `TurnEngineService.advanceFromCurrentTurn()` inside the message submission transaction after locking/validating the current turn.
+- The public `advanceFromTurn()` method performs `SELECT ... FOR UPDATE`; callers that already hold a transaction lock should use `advanceFromCurrentTurn()`.
+- Mid-round join eligibility is based on `participants.joinedAt` compared with the first turn's `createdAt` for the current round.
+
+**Dependency impact:**
+- Satisfies Task 2.2 and unblocks Task 2.3 message submission transaction work.
+- Introduces the `turns/` module as a dependency available from `AppModule`.
+
+**Files touched:**
+- `src/app.module.ts`
+- `src/turns/turn-engine.ts`
+- `src/turns/turn-engine.service.ts`
+- `src/turns/turns.module.ts`
+- `src/turns/__tests__/turn-engine.spec.ts`
+- `src/turns/__tests__/turn-engine.service.spec.ts`
+
+**Commit:**
+- `2febe52bc3163f1a2155d7217ce6c52420f3dec7`
+
+**Verification completed:**
+- [x] `./node_modules/.bin/jest src/turns/__tests__/turn-engine.spec.ts src/turns/__tests__/turn-engine.service.spec.ts --runInBand`
+- [x] `./node_modules/.bin/tsc --noEmit`
+- [x] `./node_modules/.bin/eslint src/app.module.ts src/turns`
+- [x] `./node_modules/.bin/nest build`
+- [x] `git diff --check`
+- [x] Subagent review completed; findings were addressed and re-review approved.
+
+**Not verified:**
+- [ ] Literal `pnpm` commands, because `pnpm` is not available on this shell PATH.
+- [ ] PostgreSQL integration lock behavior, because Task 2.2 was verified with unit/mock service tests; Task 2.3 should add transaction/concurrency integration coverage.
+
+**Open risks or follow-ups:**
+- Row-lock coverage is mock-level only; Task 2.3 should verify real transaction behavior when message submission and turn advancement are wired together.
+- The current implementation does not change participant `waiting` to `active` when selected; no spec acceptance criterion requires that yet.
+
+**Instructions for the next worker:**
+- In Task 2.3, lock and validate the current turn before calling `advanceFromCurrentTurn()`.
+- Preserve the round-start timestamp rule for late joins unless a schema-level round membership snapshot is introduced.
+- Add integration coverage for concurrent submit behavior once message submission uses this engine.
