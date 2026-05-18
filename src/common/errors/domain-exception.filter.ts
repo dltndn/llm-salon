@@ -8,15 +8,19 @@ import { Response } from 'express';
 
 import {
   DuplicateAppRegistrationError,
+  PhaseTransitionError,
   ParticipantConflictError,
   RegistrationClosedError,
+  WrongTurnError,
 } from './domain.errors';
 import { Audience } from '../audience';
 
 @Catch(
   DuplicateAppRegistrationError,
+  PhaseTransitionError,
   ParticipantConflictError,
   RegistrationClosedError,
+  WrongTurnError,
 )
 export class DomainExceptionFilter implements ExceptionFilter {
   catch(exception: Error, host: ArgumentsHost): void {

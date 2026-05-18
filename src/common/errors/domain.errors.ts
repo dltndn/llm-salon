@@ -20,3 +20,21 @@ export class RegistrationClosedError extends Error {
     this.name = 'RegistrationClosedError';
   }
 }
+
+export class WrongTurnError extends Error {
+  constructor(currentMember: string | null) {
+    super(
+      currentMember
+        ? `Wrong turn. Current participant: ${currentMember}`
+        : 'Wrong turn. No active turn is available.',
+    );
+    this.name = 'WrongTurnError';
+  }
+}
+
+export class PhaseTransitionError extends Error {
+  constructor(from: string, to: string) {
+    super(`Invalid topic phase transition: ${from} -> ${to}`);
+    this.name = 'PhaseTransitionError';
+  }
+}
