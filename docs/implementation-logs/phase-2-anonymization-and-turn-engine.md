@@ -131,3 +131,74 @@
 - In Task 2.3, lock and validate the current turn before calling `advanceFromCurrentTurn()`.
 - Preserve the round-start timestamp rule for late joins unless a schema-level round membership snapshot is introduced.
 - Add integration coverage for concurrent submit behavior once message submission uses this engine.
+
+## Entry: 2026-05-18 Task 2.3
+
+**Worker context:**
+- Phase: Phase 2
+- Task: Task 2.3: Message submit transaction and state machine
+- Dependencies reviewed:
+  - Task 2.1
+  - Task 2.2
+  - Phase 2 log
+  - `docs/specs/02-domain-model.md`
+  - `docs/specs/03-modules.md`
+  - `docs/specs/05-api.md`
+  - `docs/specs/10-testing.md`
+
+**What was done:**
+- Added `POST /api/projects/:slug/topics/:topicId/messages`.
+- Added message submission validation with current-turn locking and `WrongTurnError` mapping to 409.
+- Inserted messages and turn advancement in one Prisma transaction.
+- Added automatic `preparing -> debating` and `debating -> drafting` transitions for `maxTurns` and completed `maxRounds`.
+- Added a domain event bus and emitted `message.created`, `turn.changed`, and `topic.phase_changed` only after the transaction commits.
+- Added REST regression tests for message submit, wrong/no turn, phase transitions, concurrent submit behavior, and exactly one `message.created` event.
+- Added opt-in Prisma-backed concurrency coverage gated by `DATABASE_URL` and `LLM_SALON_RUN_DB_TESTS=1`.
+
+**Why it matters for the next worker:**
+- Phase 3 can subscribe to the domain event bus to implement SSE fan-out.
+- The message route assumes an `in_progress` turn already exists; no implicit initial-turn creation was added because Task 2.3 requires calls without a turn to return 409.
+- Actual SSE delivery is still Phase 3 scope; Phase 2 verifies domain event emission.
+
+**Dependency impact:**
+- Satisfies Task 2.3 and completes the Phase 2 checkpoint at the domain-event level.
+- Unblocks Phase 3 SSE and dashboard work.
+
+**Files touched:**
+- `src/app.module.ts`
+- `src/common/errors/*`
+- `src/events/*`
+- `src/messages/*`
+- `test/messages.spec.ts`
+
+**Commit:**
+- `a081fd8cbb7144e3273e64563c9b3037b3259551`
+
+**Verification completed:**
+- [x] `./node_modules/.bin/jest test/messages.spec.ts --runInBand` with elevated permission for Supertest listener binding
+- [x] `./node_modules/.bin/jest src/common/__tests__/anonymous-guard.spec.ts src/prompt/prompt-input.spec.ts src/turns/__tests__/turn-engine.spec.ts src/turns/__tests__/turn-engine.service.spec.ts --runInBand`
+- [x] `./node_modules/.bin/tsc --noEmit`
+- [x] `./node_modules/.bin/eslint src/app.module.ts src/messages src/events src/common/errors src/turns test/messages.spec.ts`
+- [x] `./node_modules/.bin/nest build`
+- [x] `git diff --check`
+- [x] `gpt-5.4` subagent review completed; findings were addressed and re-review approved.
+
+**Not verified:**
+- [ ] Literal `pnpm` commands, because `pnpm` is not available on this shell PATH.
+- [ ] Opt-in Prisma-backed concurrency test, because `DATABASE_URL` is not set in this shell.
+- [ ] Actual SSE fan-out, because `sse/` is Phase 3 scope and is not implemented yet.
+
+**Open risks or follow-ups:**
+- Enable the DB-backed test lane with `DATABASE_URL` and `LLM_SALON_RUN_DB_TESTS=1` in CI or local database verification.
+- Phase 3 must connect `DomainEventBus` to SSE and verify exactly one SSE event per message.
+
+**Instructions for the next worker:**
+- Start Phase 3 from the `DomainEventBus` events added in Task 2.3.
+- Do not add a second message event path when implementing SSE; subscribe to `message.created` instead.
+- If an initial-turn creation flow is added, keep the current no-turn 409 behavior for submit calls that lack an active turn.
+
+## Phase 2 checkpoint status
+- [x] All anonymization guard unit tests pass.
+- [x] Round-robin / state-machine table tests pass.
+- [x] e2e-style REST message submit resolves the next turn.
+- [ ] Actual SSE delivery is deferred to Phase 3, where the SSE module is introduced.
