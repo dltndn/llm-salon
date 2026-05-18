@@ -18,6 +18,7 @@ type BootstrapOptions = {
   autoMigrate?: boolean;
   argv?: readonly string[];
   listen?: boolean;
+  onListen?: (port: number) => void;
   stdout?: Pick<Console, 'log'>;
 };
 
@@ -28,6 +29,7 @@ export async function bootstrap(
     autoMigrate,
     argv = process.argv.slice(2),
     listen = true,
+    onListen,
     stdout = console,
   } = options;
   const { homePath, envFilePath, createdEnvFile } = await prepareLlmSalonHome(
@@ -56,13 +58,14 @@ export async function bootstrap(
 
   if (listen) {
     const configService = app.get(ConfigService);
-    const port = configService.get<number>('LLM_SALON_PORT', 4477);
+    const port = Number(configService.get<string | number>('LLM_SALON_PORT', 4477));
 
-    await bindWithPortRetry(
+    const boundPort = await bindWithPortRetry(
       (candidatePort, host) => app.listen(candidatePort, host),
       port,
       '127.0.0.1',
     );
+    onListen?.(boundPort);
   }
 
   return app;

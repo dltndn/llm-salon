@@ -189,3 +189,72 @@
 - Task 1.4 should consume the REST endpoints created in Tasks 1.2 and 1.3.
 - Keep the project row lock in participant registration unless a stronger turn/registration lock is introduced.
 - Do not start Phase 2 anonymization work until Task 1.4 is complete and logged.
+
+## Entry: 2026-05-18 Task 1.4
+
+**Worker context:**
+- Phase: Phase 1
+- Task: Task 1.4: CLI start/project list/env init
+- Dependencies reviewed:
+  - Task 1.1
+  - Task 1.2
+  - Task 1.3
+  - Phase 1 log
+  - `docs/specs/09-cli.md`
+  - `docs/specs/10-testing.md`
+
+**What was done:**
+- Added a `nest-commander` CLI entrypoint exposed as `llm-salon`.
+- Added `llm-salon start <project>` with home/env preparation, atomic `server.lock` acquisition, port override support, 10-attempt port auto-increment, browser launch, URL printing, and shutdown lock cleanup.
+- Added first-boot handling so a newly copied `.env` with no `DATABASE_URL` skips migration, avoids project DB creation, prints setup guidance, and still opens/prints the project URL.
+- Added `llm-salon project list`, using HTTP when a live server lock exists and a one-shot Nest application context otherwise.
+- Added `llm-salon env init`.
+- Added Phase 1 CLI coverage for `llm-salon topic create <project> --file <path>` and `llm-salon join <project> --client <name> --model <name>` so the CLI can create projects, topics, and participants.
+- Added server lock tests covering lock path resolution, read/write, active PID blocking, atomic acquisition, and stale lock cleanup.
+- Adjusted `bindWithPortRetry()` from 10 retries after the initial port to 10 total bind attempts, matching the CLI spec wording.
+
+**Why it matters for the next worker:**
+- Phase 2 can assume the local CLI can bootstrap the server, locate the running server through `server.lock`, and delegate project/topic/participant setup to the REST API.
+- The lock file is now acquired before boot to prevent duplicate starts racing before the listener is ready.
+- CLI commands that require a running server should use the lock-aware HTTP helpers in `src/cli/running-server.ts` and `src/cli/http-client.ts`.
+
+**Dependency impact:**
+- Satisfies Task 1.4 and completes the Phase 1 checkpoint.
+- Introduces `nest-commander`, `open`, and `@types/inquirer`.
+- `src/main.ts` now supports an `onListen` bootstrap hook so CLI startup can write the actual auto-incremented port to the lock file.
+
+**Files touched:**
+- `package.json`
+- `pnpm-lock.yaml`
+- `src/main.ts`
+- `src/startup/port.binding.ts`
+- `src/startup/port.binding.spec.ts`
+- `src/cli/*`
+
+**Commit:**
+- Same task commit containing this entry.
+
+**Verification completed:**
+- [x] `./node_modules/.bin/tsc --noEmit`
+- [x] `./node_modules/.bin/eslint src test`
+- [x] `./node_modules/.bin/nest build`
+- [x] `./node_modules/.bin/jest src/cli/__tests__/server-lock.spec.ts src/startup/port.binding.spec.ts --runInBand`
+- [x] `./node_modules/.bin/jest --runInBand` with elevated permission for Supertest listener binding
+- [x] CLI smoke: `env init` created `.env` under a temp `LLM_SALON_HOME`.
+- [x] CLI smoke: first `start` with a newly copied `.env` and no `DATABASE_URL` skipped migration/project DB creation, printed setup guidance, and printed `http://127.0.0.1:<port>/projects/<slug>`.
+- [x] CLI smoke against temporary PostgreSQL: `start`, `/health`, duplicate `start` lock rejection, `project list`, `topic create`, and `join`.
+- [x] CLI smoke: invalid `join` invocation returns exit code 1.
+- [x] Subagent spec/code reviews completed; blocker findings and follow-up feedback were addressed.
+
+**Not verified:**
+- [ ] Literal `pnpm` commands, because `pnpm` is not available on this shell PATH; local binaries and the pinned pnpm via `npm exec` were used where needed.
+
+**Open risks or follow-ups:**
+- Task 1.4 intentionally implements only Phase 1 CLI surface plus the Phase 1 checkpoint commands. Remaining commands in `09-cli.md` such as `stop`, `status`, `provider add`, `logs`, and `mcp` remain future-phase work.
+- `project list` treats an active lock with failing HTTP as an inconsistent running-server state and exits with an error rather than deleting the live lock.
+- Default full Jest still skips opt-in DB mutation tests unless their environment flags are set.
+
+**Instructions for the next worker:**
+- Start Phase 2 only after confirming this Task 1.4 commit is present.
+- Reuse the CLI lock and HTTP helpers for additional CLI commands instead of duplicating lock parsing.
+- If implementing `llm-salon stop`, use the existing `server.lock` shape and remove the lock only after the target process is no longer running.

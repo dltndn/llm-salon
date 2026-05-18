@@ -15,15 +15,15 @@ describe('bindWithPortRetry', () => {
     expect(listen).toHaveBeenNthCalledWith(2, 4478, '127.0.0.1');
   });
 
-  it('stops after 10 retries when every port is in use', async () => {
+  it('stops after 10 attempts when every port is in use', async () => {
     const listen = jest.fn().mockRejectedValue({ code: 'EADDRINUSE' });
 
     await expect(bindWithPortRetry(listen, 4477, '127.0.0.1')).rejects.toEqual({
       code: 'EADDRINUSE',
     });
 
-    expect(listen).toHaveBeenCalledTimes(11);
-    expect(listen).toHaveBeenLastCalledWith(4487, '127.0.0.1');
+    expect(listen).toHaveBeenCalledTimes(10);
+    expect(listen).toHaveBeenLastCalledWith(4486, '127.0.0.1');
   });
 
   it('rethrows non-port-conflict errors without retrying', async () => {

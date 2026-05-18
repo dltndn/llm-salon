@@ -1,4 +1,4 @@
-const DEFAULT_PORT_RETRY_LIMIT = 10;
+const DEFAULT_PORT_BIND_ATTEMPTS = 10;
 
 type PortBindingListener = (
   port: number,
@@ -18,16 +18,16 @@ export async function bindWithPortRetry(
   listen: PortBindingListener,
   requestedPort: number,
   host: string,
-  maxRetries: number = DEFAULT_PORT_RETRY_LIMIT,
+  maxAttempts: number = DEFAULT_PORT_BIND_ATTEMPTS,
 ): Promise<number> {
   let port = requestedPort;
 
-  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       await listen(port, host);
       return port;
     } catch (error) {
-      if (!isAddressInUseError(error) || attempt === maxRetries) {
+      if (!isAddressInUseError(error) || attempt === maxAttempts - 1) {
         throw error;
       }
 
