@@ -1,6 +1,7 @@
 import { Participant, Project, Topic } from '@prisma/client';
 
 import { Audience } from '../common/audience';
+import { serializeParticipant } from '../participants/participant.presenter';
 
 type ProjectWithRelations = Project & {
   participants?: Participant[];
@@ -22,32 +23,6 @@ function serializeTopic(topic: Topic) {
     reporterParticipantId: topic.reporterParticipantId,
     createdAt: topic.createdAt,
     updatedAt: topic.updatedAt,
-  };
-}
-
-function serializeParticipant(participant: Participant, audience: Audience) {
-  const base = {
-    anonymousName: participant.anonymousName,
-  };
-
-  if (audience === 'anonymous') {
-    return base;
-  }
-
-  return {
-    ...base,
-    id: participant.id,
-    projectId: participant.projectId,
-    participantType: participant.participantType,
-    status: participant.status,
-    joinOrder: participant.joinOrder,
-    joinedAt: participant.joinedAt,
-    createdAt: participant.createdAt,
-    updatedAt: participant.updatedAt,
-    displayName: participant.displayName,
-    providerName: participant.providerName,
-    modelName: participant.modelName,
-    clientName: participant.clientName,
   };
 }
 

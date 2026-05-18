@@ -1,5 +1,4 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
 import {
   Participant,
   Prisma,
@@ -9,8 +8,8 @@ import {
 } from '@prisma/client';
 import * as request from 'supertest';
 
-import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { createTestApp } from './test-app';
 
 type StoredProject = {
   id: string;
@@ -148,22 +147,7 @@ describe('Project and topic REST API', () => {
 
   beforeEach(async () => {
     prisma = new InMemoryPrisma();
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideProvider(PrismaService)
-      .useValue(prisma)
-      .compile();
-
-    app = moduleRef.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        forbidNonWhitelisted: true,
-        transform: true,
-        whitelist: true,
-      }),
-    );
-    await app.init();
+    app = await createTestApp(prisma);
   });
 
   afterEach(async () => {
@@ -327,20 +311,7 @@ describeIfDatabase('Project and topic REST API with Prisma', () => {
   const slugPrefix = 'rest-db-test';
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    app = moduleRef.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        forbidNonWhitelisted: true,
-        transform: true,
-        whitelist: true,
-      }),
-    );
-    await app.init();
-
+    app = await createTestApp();
     prisma = app.get(PrismaService);
   });
 

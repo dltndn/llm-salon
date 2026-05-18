@@ -1,12 +1,13 @@
 import 'reflect-metadata';
 
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 
 import { prepareLlmSalonHome } from './config/config.bootstrap';
 import { loadEnvFileIntoProcessEnv } from './config/env.file';
 import { LLM_SALON_ENV_FILE_PATH_ENV } from './config/config.paths';
+import { applyHttpGlobals } from './http/apply-http-globals';
 import {
   resolveAutoMigrateEnabled,
   runPrismaMigrateDeploy,
@@ -51,13 +52,7 @@ export async function bootstrap(
 
   const { AppModule } = await import('./app.module');
   const app = await NestFactory.create(AppModule);
-  app.useGlobalPipes(
-    new ValidationPipe({
-      forbidNonWhitelisted: true,
-      transform: true,
-      whitelist: true,
-    }),
-  );
+  applyHttpGlobals(app);
 
   if (listen) {
     const configService = app.get(ConfigService);
