@@ -2,7 +2,10 @@ import { Module } from '@nestjs/common';
 
 import { AppConfigModule } from './config/config.module';
 import { EventsModule } from './events/events.module';
+import { EjsRendererService } from './http/ejs-renderer.service';
 import { HealthController } from './http/health.controller';
+import { ViewsController } from './http/views.controller';
+import { ViewsService } from './http/views.service';
 import { MessagesModule } from './messages/messages.module';
 import { ParticipantsModule } from './participants/participants.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -23,6 +26,7 @@ import { TurnsModule } from './turns/turns.module';
     MessagesModule,
     SseModule,
   ],
-  controllers: [HealthController],
+  controllers: [HealthController, ViewsController],
+  providers: [EjsRendererService, ViewsService],
 })
 export class AppModule {}

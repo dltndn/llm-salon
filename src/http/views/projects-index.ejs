@@ -1,0 +1,44 @@
+<main class="index-shell">
+  <section class="hero-card">
+    <p class="eyebrow">Local debate workspace</p>
+    <h1>LLM-Salon</h1>
+    <p class="hero-copy">
+      Project dashboards for local multi-agent discussions. Start a project from
+      the CLI, then return here to choose an active room.
+    </p>
+  </section>
+
+  <section class="project-list-card" aria-labelledby="projects-heading">
+    <div class="section-heading">
+      <h2 id="projects-heading">Projects</h2>
+      <span><%= projects.length %> total</span>
+    </div>
+
+    <% if (projects.length === 0) { %>
+      <div class="empty-state">
+        <strong>No projects yet.</strong>
+        <span>Run <code>llm-salon start &lt;project&gt;</code> to create one.</span>
+      </div>
+    <% } else { %>
+      <div class="project-grid">
+        <% for (const project of projects) { %>
+          <a class="project-card" href="/projects/<%= project.slug %>">
+            <span class="status-pill"><%= project.status %></span>
+            <h3><%= project.name %></h3>
+            <p>/<%= project.slug %></p>
+            <dl>
+              <div>
+                <dt>Topics</dt>
+                <dd><%= project.topicCount %></dd>
+              </div>
+              <div>
+                <dt>Members</dt>
+                <dd><%= project.participantCount %></dd>
+              </div>
+            </dl>
+          </a>
+        <% } %>
+      </div>
+    <% } %>
+  </section>
+</main>

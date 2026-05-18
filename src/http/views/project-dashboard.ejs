@@ -1,0 +1,158 @@
+<main
+  class="dashboard-shell"
+  data-project-slug="<%= project.slug %>"
+  data-selected-topic-id="<%= selectedTopic ? selectedTopic.id : '' %>"
+>
+  <header class="dashboard-header">
+    <div>
+      <a class="back-link" href="/">Projects</a>
+      <h1><%= project.name %></h1>
+      <p>
+        /<%= project.slug %>
+        <% if (selectedTopic) { %>
+          <span class="header-topic">Topic: <%= selectedTopic.title %></span>
+        <% } %>
+      </p>
+    </div>
+    <div class="header-status">
+      <span
+        id="connection-status"
+        class="connection-pill"
+        data-state="connecting"
+      >Connecting</span>
+      <% if (selectedTopic) { %>
+        <span id="phase-badge" class="phase-badge"><%= selectedTopic.phase %></span>
+      <% } %>
+    </div>
+  </header>
+
+  <% if (project.topics && project.topics.length > 0) { %>
+    <nav class="topic-tabs" aria-label="Topics">
+      <% for (const topic of project.topics) { %>
+        <a
+          class="topic-tab <%= selectedTopic && selectedTopic.id === topic.id ? 'is-active' : '' %>"
+          href="/projects/<%= project.slug %>?topic=<%= topic.id %>"
+        >
+          <span><%= topic.title %></span>
+          <small><%= topic.phase %></small>
+        </a>
+      <% } %>
+    </nav>
+  <% } %>
+
+  <% if (!selectedTopic) { %>
+    <section class="empty-state dashboard-empty">
+      <strong>No topics yet.</strong>
+      <span>Create a topic from the CLI or REST API to start the dashboard.</span>
+    </section>
+  <% } else { %>
+    <section class="dashboard-grid">
+      <aside class="panel participant-panel" aria-labelledby="participants-heading">
+        <div class="section-heading">
+          <h2 id="participants-heading">Participants</h2>
+          <span><%= participants.length %></span>
+        </div>
+        <ol id="participant-list" class="participant-list">
+          <% for (const participant of participants) { %>
+            <li
+              class="participant-row <%= currentTurn && currentTurn.participantId === participant.id ? 'is-current' : '' %>"
+              data-participant-id="<%= participant.id %>"
+            >
+              <span class="participant-name"><%= participant.displayName %></span>
+              <span class="participant-status"><%= participant.status %></span>
+            </li>
+          <% } %>
+        </ol>
+      </aside>
+
+      <section class="panel message-panel" aria-labelledby="messages-heading">
+        <div class="section-heading message-heading">
+          <div>
+            <h2 id="messages-heading"><%= selectedTopic.title %></h2>
+            <% if (selectedTopic.description) { %>
+              <p><%= selectedTopic.description %></p>
+            <% } %>
+          </div>
+          <div id="turn-summary" class="turn-summary">
+            <% if (currentTurn) { %>
+              Turn <%= currentTurn.turnIndex %> / Round <%= currentTurn.roundIndex %>:
+              <strong><%= currentTurn.displayName %></strong>
+            <% } else { %>
+              No active turn
+            <% } %>
+          </div>
+        </div>
+
+        <div id="message-list" class="message-list" aria-live="polite">
+          <% if (messages.length === 0) { %>
+            <div id="empty-messages" class="empty-state">
+              <strong>No messages yet.</strong>
+              <span>Messages will appear here as participants speak.</span>
+            </div>
+          <% } %>
+          <% for (const message of messages) { %>
+            <article class="message-card" data-message-id="<%= message.id %>">
+              <header>
+                <strong><%= message.displayName %></strong>
+                <span>Turn <%= message.turnIndex %> / <%= message.phase %></span>
+              </header>
+              <p><%= message.content %></p>
+            </article>
+          <% } %>
+        </div>
+      </section>
+
+      <aside class="panel artifacts-panel" aria-label="Documents and report">
+        <section>
+          <div class="section-heading">
+            <h2>Documents</h2>
+            <span><%= documents.length %></span>
+          </div>
+          <% if (documents.length === 0) { %>
+            <p class="muted">No documents attached to this topic.</p>
+          <% } else { %>
+            <ul class="artifact-list">
+              <% for (const document of documents) { %>
+                <li><%= document.fileName %></li>
+              <% } %>
+            </ul>
+          <% } %>
+        </section>
+
+        <section>
+          <div class="section-heading">
+            <h2>Report</h2>
+            <% if (report) { %>
+              <span><%= report.status %></span>
+            <% } %>
+          </div>
+          <% if (!report) { %>
+            <p class="muted">No report draft yet.</p>
+          <% } else { %>
+            <div class="report-sections">
+              <article>
+                <h3>Draft</h3>
+                <% if (report.draftContent) { %>
+                  <p><%= report.draftContent %></p>
+                <% } else { %>
+                  <p class="muted">Draft content is not available yet.</p>
+                <% } %>
+              </article>
+              <article>
+                <h3>Final</h3>
+                <% if (report.finalContent) { %>
+                  <p><%= report.finalContent %></p>
+                <% } else { %>
+                  <p class="muted">Final content is not available yet.</p>
+                <% } %>
+              </article>
+              <p class="muted"><%= report.filePath || 'Report file is not written to disk yet.' %></p>
+            </div>
+          <% } %>
+        </section>
+      </aside>
+    </section>
+  <% } %>
+
+  <script src="/public/dashboard.js" defer></script>
+</main>
