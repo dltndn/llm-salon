@@ -34,7 +34,7 @@
 - `src/prisma/prisma.unique.spec.ts`
 
 **Commit:**
-- Same task commit containing this entry.
+- `9f201c9f16f7b86a3b42038cdf77fe980fa5d803`
 
 **Verification completed:**
 - [x] `DATABASE_URL=postgresql://user:pass@localhost:5432/db node scripts/prisma-cli.js validate`
@@ -100,7 +100,7 @@
 - `test/projects.spec.ts`
 
 **Commit:**
-- Same task commit containing this entry.
+- `8264f49fc95e36023ce8b34cf8c77cc4941b3bff`
 
 **Verification completed:**
 - [x] `./node_modules/.bin/jest test/projects.spec.ts --runInBand`
@@ -167,7 +167,7 @@
 - `test/test-app.ts`
 
 **Commit:**
-- Same task commit containing this entry.
+- `cadb2797b0d4ba5293c3f551f4dbac85aee77a86`
 
 **Verification completed:**
 - [x] `./node_modules/.bin/jest src/participants/__tests__/anonymous-name.spec.ts test/participants.spec.ts test/projects.spec.ts --runInBand`
