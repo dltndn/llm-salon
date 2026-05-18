@@ -284,6 +284,11 @@ describe('Project and topic REST API', () => {
     expect(anonymousProject.body.participants[0]).toMatchObject({
       anonymousName: 'Member A',
     });
+    expect(anonymousProject.body.participants[0]).toMatchInlineSnapshot(`
+{
+  "anonymousName": "Member A",
+}
+`);
     expect(Object.keys(anonymousProject.body.participants[0])).toEqual([
       'anonymousName',
     ]);

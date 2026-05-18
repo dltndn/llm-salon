@@ -11,7 +11,7 @@ import { slugifyProjectName } from './slug';
 export class ProjectsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createProject(dto: CreateProjectDto) {
+  async createProject(dto: CreateProjectDto, audience: Audience = 'human') {
     const baseSlug = slugifyProjectName(dto.slug ?? dto.name);
 
     for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -26,7 +26,7 @@ export class ProjectsService {
               status: ProjectStatus.created,
             },
           }),
-          'human',
+          audience,
         );
       } catch (error) {
         if (this.isProjectSlugConflict(error)) {

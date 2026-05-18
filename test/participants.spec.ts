@@ -256,6 +256,32 @@ describe('Participant REST API', () => {
     });
   });
 
+  it('does not leak human identifiers in anonymous conflict errors', async () => {
+    const payload = {
+      participantType: 'app',
+      clientName: 'Codex',
+      modelName: 'GPT-5',
+    };
+
+    await request(app.getHttpServer())
+      .post('/api/projects/participant-project/participants?audience=anonymous')
+      .send(payload)
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .post('/api/projects/participant-project/participants?audience=anonymous')
+      .send(payload)
+      .expect(409);
+
+    expect(response.body).toMatchObject({
+      error: 'DuplicateAppRegistrationError',
+      message: 'Request conflicts with the current project state.',
+      statusCode: 409,
+    });
+    expect(JSON.stringify(response.body)).not.toContain('Codex');
+    expect(JSON.stringify(response.body)).not.toContain('GPT-5');
+  });
+
   it('counts removed participants when assigning anonymous names', async () => {
     prisma.seedRemovedParticipant(1);
 

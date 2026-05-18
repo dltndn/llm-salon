@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { TopicMode, TopicPhase } from '@prisma/client';
 
+import { Audience } from '../common/audience';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTopicDto } from './dto/create-topic.dto';
 import { serializeTopic } from './topic.presenter';
@@ -9,7 +10,11 @@ import { serializeTopic } from './topic.presenter';
 export class TopicsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createTopic(projectSlug: string, dto: CreateTopicDto) {
+  async createTopic(
+    projectSlug: string,
+    dto: CreateTopicDto,
+    audience: Audience = 'human',
+  ) {
     const project = await this.prisma.project.findUnique({
       where: { slug: projectSlug },
       select: { id: true },
@@ -31,6 +36,7 @@ export class TopicsService {
           phase: TopicPhase.preparing,
         },
       }),
+      audience,
     );
   }
 }

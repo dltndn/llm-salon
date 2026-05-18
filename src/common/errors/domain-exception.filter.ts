@@ -11,6 +11,7 @@ import {
   ParticipantConflictError,
   RegistrationClosedError,
 } from './domain.errors';
+import { Audience } from '../audience';
 
 @Catch(
   DuplicateAppRegistrationError,
@@ -19,11 +20,16 @@ import {
 )
 export class DomainExceptionFilter implements ExceptionFilter {
   catch(exception: Error, host: ArgumentsHost): void {
-    const response = host.switchToHttp().getResponse<Response>();
+    const http = host.switchToHttp();
+    const request = http.getRequest<{ audience?: Audience }>();
+    const response = http.getResponse<Response>();
 
     response.status(HttpStatus.CONFLICT).json({
       error: exception.name,
-      message: exception.message,
+      message:
+        request.audience === 'anonymous'
+          ? 'Request conflicts with the current project state.'
+          : exception.message,
       statusCode: HttpStatus.CONFLICT,
     });
   }

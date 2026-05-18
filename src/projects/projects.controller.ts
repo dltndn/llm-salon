@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 
-import { normalizeAudience } from '../common/audience';
+import { Audience, RequestAudience } from '../common/audience';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { ProjectsService } from './projects.service';
 
@@ -9,20 +9,20 @@ export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Post()
-  createProject(@Body() dto: CreateProjectDto) {
-    return this.projectsService.createProject(dto);
+  createProject(
+    @Body() dto: CreateProjectDto,
+    @RequestAudience() audience: Audience,
+  ) {
+    return this.projectsService.createProject(dto, audience);
   }
 
   @Get()
-  listProjects(@Query('audience') audience?: string) {
-    return this.projectsService.listProjects(normalizeAudience(audience));
+  listProjects(@RequestAudience() audience: Audience) {
+    return this.projectsService.listProjects(audience);
   }
 
   @Get(':slug')
-  getProject(@Param('slug') slug: string, @Query('audience') audience?: string) {
-    return this.projectsService.getProjectBySlug(
-      slug,
-      normalizeAudience(audience),
-    );
+  getProject(@Param('slug') slug: string, @RequestAudience() audience: Audience) {
+    return this.projectsService.getProjectBySlug(slug, audience);
   }
 }

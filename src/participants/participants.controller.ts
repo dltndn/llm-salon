@@ -1,6 +1,6 @@
-import { Body, Controller, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Param, Post } from '@nestjs/common';
 
-import { normalizeAudience } from '../common/audience';
+import { Audience, RequestAudience } from '../common/audience';
 import { RegisterParticipantDto } from './dto/register-participant.dto';
 import { ParticipantsService } from './participants.service';
 
@@ -12,12 +12,8 @@ export class ParticipantsController {
   registerParticipant(
     @Param('slug') slug: string,
     @Body() dto: RegisterParticipantDto,
-    @Query('audience') audience?: string,
+    @RequestAudience() audience: Audience,
   ) {
-    return this.participantsService.registerParticipant(
-      slug,
-      dto,
-      normalizeAudience(audience),
-    );
+    return this.participantsService.registerParticipant(slug, dto, audience);
   }
 }

@@ -1,7 +1,13 @@
 import { Topic } from '@prisma/client';
 
-export function serializeTopic(topic: Topic) {
-  return {
+import { Audience } from '../common/audience';
+import { TopicAnonymousDto, TopicHumanDto } from '../common/dto';
+
+export function serializeTopic(
+  topic: Topic,
+  audience: Audience = 'human',
+): TopicHumanDto | TopicAnonymousDto {
+  const serialized = {
     id: topic.id,
     projectId: topic.projectId,
     title: topic.title,
@@ -16,4 +22,8 @@ export function serializeTopic(topic: Topic) {
     createdAt: topic.createdAt,
     updatedAt: topic.updatedAt,
   };
+
+  return audience === 'anonymous'
+    ? (serialized as TopicAnonymousDto)
+    : (serialized as TopicHumanDto);
 }
