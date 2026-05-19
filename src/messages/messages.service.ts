@@ -16,6 +16,7 @@ import {
 import { DOMAIN_EVENT, DomainEvent } from '../events/domain-events';
 import { DomainEventBus } from '../events/event-bus';
 import { PrismaService } from '../prisma/prisma.service';
+import { ReportsService } from '../reports/reports.service';
 import { TurnEngineService } from '../turns/turn-engine.service';
 import { SubmitMessageDto } from './dto/submit-message.dto';
 import {
@@ -36,6 +37,7 @@ export class MessagesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly turnEngine: TurnEngineService,
+    private readonly reportsService: ReportsService,
     private readonly events: DomainEventBus,
   ) {}
 
@@ -86,13 +88,12 @@ export class MessagesService {
           data: { status: TurnStatus.completed },
         });
         await this.incrementTopicVersion(tx, topic.id);
-        await this.transitionTopic(
-          tx,
-          topic,
+        await this.reportsService.beginDrafting(tx, {
+          projectId,
           projectSlug,
-          phaseAfter,
+          topic,
           domainEvents,
-        );
+        });
 
         return { message, nextTurn: null, phaseAfter };
       }

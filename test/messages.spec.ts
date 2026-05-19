@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import {
   ParticipantStatus,
   ParticipantType,
+  Report,
   Topic,
   TopicMode,
   TopicPhase,
@@ -19,6 +20,7 @@ const projectId = '11111111-1111-4111-8111-111111111111';
 const topicId = '22222222-2222-4222-8222-222222222222';
 const participantAId = '33333333-3333-4333-8333-333333333333';
 const participantBId = '44444444-4444-4444-8444-444444444444';
+const providerParticipantId = '66666666-6666-4666-8666-666666666666';
 const now = new Date('2026-05-18T00:00:00.000Z');
 
 class InMemoryMessagesPrisma {
@@ -53,6 +55,7 @@ class InMemoryMessagesPrisma {
     },
   ];
   private messages: unknown[] = [];
+  private reports: Report[] = [];
 
   setDebatingLimits(limits: { maxTurns?: number; maxRounds?: number }) {
     this.topicRecord.phase = TopicPhase.debating;
@@ -68,7 +71,9 @@ class InMemoryMessagesPrisma {
   readonly project = {
     findUnique: jest.fn(({ where }) =>
       Promise.resolve(
-        where.slug === 'message-project' ? { id: projectId } : null,
+        where.slug === 'message-project'
+          ? { id: projectId, slug: 'message-project' }
+          : null,
       ),
     ),
   };
@@ -167,8 +172,62 @@ class InMemoryMessagesPrisma {
       Promise.resolve([
         this.buildParticipant(participantAId, 1, 'Member A'),
         this.buildParticipant(participantBId, 2, 'Member B'),
+        this.buildParticipant(
+          providerParticipantId,
+          3,
+          'Member C',
+          ParticipantType.provider,
+          new Date('2026-05-19T01:00:00.000Z'),
+        ),
       ]),
     ),
+  };
+
+  readonly report = {
+    findFirst: jest.fn(({ where }) =>
+      Promise.resolve(
+        this.reports.find(
+          (report) =>
+            report.projectId === where.projectId &&
+            report.topicId === where.topicId,
+        ) ?? null,
+      ),
+    ),
+    findMany: jest.fn(({ where, take }) => {
+      const matches = this.reports.filter(
+        (report) =>
+          report.projectId === where.projectId &&
+          report.topicId === where.topicId,
+      );
+
+      return Promise.resolve(
+        typeof take === 'number' ? matches.slice(0, take) : matches,
+      );
+    }),
+    create: jest.fn(({ data }) => {
+      const report: Report = {
+        id: '88888888-8888-4888-8888-000000000001',
+        draftContent: null,
+        finalContent: null,
+        filePath: null,
+        createdAt: now,
+        updatedAt: now,
+        ...data,
+      };
+      this.reports.push(report);
+
+      return Promise.resolve({ ...report });
+    }),
+    update: jest.fn(({ where, data }) => {
+      const index = this.reports.findIndex((report) => report.id === where.id);
+      this.reports[index] = {
+        ...this.reports[index],
+        ...data,
+        updatedAt: now,
+      };
+
+      return Promise.resolve({ ...this.reports[index] });
+    }),
   };
 
   readonly message = {
@@ -194,19 +253,23 @@ class InMemoryMessagesPrisma {
     id: string,
     joinOrder: number,
     anonymousName: string,
+    participantType: ParticipantType = ParticipantType.app,
+    joinedAt: Date = now,
   ) {
     return {
       id,
       projectId,
       displayName: anonymousName,
       anonymousName,
-      participantType: ParticipantType.app,
-      providerName: null,
+      participantType,
+      providerName:
+        participantType === ParticipantType.provider ? 'openai' : null,
       modelName: 'Model',
-      clientName: anonymousName,
+      clientName:
+        participantType === ParticipantType.app ? anonymousName : null,
       status: ParticipantStatus.active,
       joinOrder,
-      joinedAt: now,
+      joinedAt,
       createdAt: now,
       updatedAt: now,
     };
@@ -302,6 +365,15 @@ describe('Message REST API', () => {
       nextMember: null,
       phaseAfter: TopicPhase.drafting,
     });
+    expect(events.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: DOMAIN_EVENT.topicPhaseChanged,
+        payload: expect.objectContaining({
+          projectSlug: 'message-project',
+          phase: TopicPhase.drafting,
+        }),
+      }),
+    );
   });
 
   it('moves debating topics to drafting after the last speaker in maxRounds', async () => {

@@ -16,6 +16,7 @@ import {
   PhaseTransitionError,
   ParticipantConflictError,
   RegistrationClosedError,
+  ReportAlreadyExistsError,
   WrongTurnError,
 } from './domain.errors';
 import { Audience } from '../audience';
@@ -25,6 +26,7 @@ import { Audience } from '../audience';
   PhaseTransitionError,
   ParticipantConflictError,
   RegistrationClosedError,
+  ReportAlreadyExistsError,
   WrongTurnError,
   DocumentTooLargeError,
   MissingApiKeyError,

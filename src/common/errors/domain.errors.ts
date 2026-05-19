@@ -39,6 +39,13 @@ export class PhaseTransitionError extends Error {
   }
 }
 
+export class ReportAlreadyExistsError extends Error {
+  constructor(topicId: string) {
+    super(`A report already exists for topic: ${topicId}`);
+    this.name = 'ReportAlreadyExistsError';
+  }
+}
+
 export class DocumentTooLargeError extends Error {
   constructor(profile: string, limit: string) {
     super(
