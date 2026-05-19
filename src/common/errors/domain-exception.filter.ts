@@ -7,6 +7,10 @@ import {
 import { Response } from 'express';
 
 import {
+  MissingApiKeyError,
+  ProviderCallFailedError,
+} from '../../llm/llm.errors';
+import {
   DocumentTooLargeError,
   DuplicateAppRegistrationError,
   PhaseTransitionError,
@@ -23,6 +27,8 @@ import { Audience } from '../audience';
   RegistrationClosedError,
   WrongTurnError,
   DocumentTooLargeError,
+  MissingApiKeyError,
+  ProviderCallFailedError,
 )
 export class DomainExceptionFilter implements ExceptionFilter {
   catch(exception: Error, host: ArgumentsHost): void {
@@ -33,13 +39,20 @@ export class DomainExceptionFilter implements ExceptionFilter {
     const statusCode =
       exception instanceof DocumentTooLargeError
         ? HttpStatus.PAYLOAD_TOO_LARGE
-        : HttpStatus.CONFLICT;
+        : exception instanceof MissingApiKeyError
+          ? HttpStatus.BAD_REQUEST
+          : exception instanceof ProviderCallFailedError
+            ? exception.failureKind === 'timeout'
+              ? HttpStatus.GATEWAY_TIMEOUT
+              : HttpStatus.BAD_GATEWAY
+            : HttpStatus.CONFLICT;
 
     response.status(statusCode).json({
       error: exception.name,
       message:
         request.audience === 'anonymous' &&
-        !(exception instanceof DocumentTooLargeError)
+        !(exception instanceof DocumentTooLargeError) &&
+        !(exception instanceof MissingApiKeyError)
           ? 'Request conflicts with the current project state.'
           : exception.message,
       statusCode,

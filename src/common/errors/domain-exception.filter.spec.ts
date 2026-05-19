@@ -5,6 +5,7 @@ import {
   DocumentTooLargeError,
   ParticipantConflictError,
 } from './domain.errors';
+import { ProviderCallFailedError } from '../../llm/llm.errors';
 
 describe('DomainExceptionFilter', () => {
   it('preserves DocumentTooLargeError guidance for anonymous callers', () => {
@@ -37,6 +38,24 @@ describe('DomainExceptionFilter', () => {
       error: 'ParticipantConflictError',
       message: 'Request conflicts with the current project state.',
       statusCode: HttpStatus.CONFLICT,
+    });
+  });
+
+  it('maps provider timeout failures to 504', () => {
+    const json = jest.fn();
+    const status = jest.fn(() => ({ json }));
+    const host = createHost({ audience: 'human' }, { status });
+
+    new DomainExceptionFilter().catch(
+      new ProviderCallFailedError('openai', 'timeout', 'timeout'),
+      host,
+    );
+
+    expect(status).toHaveBeenCalledWith(HttpStatus.GATEWAY_TIMEOUT);
+    expect(json).toHaveBeenCalledWith({
+      error: 'ProviderCallFailedError',
+      message: 'openai provider call failed: timeout',
+      statusCode: HttpStatus.GATEWAY_TIMEOUT,
     });
   });
 });

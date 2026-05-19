@@ -145,14 +145,21 @@ class InMemoryParticipantsPrisma {
 describe('Participant REST API', () => {
   let app: INestApplication;
   let prisma: InMemoryParticipantsPrisma;
+  const previousOpenAiKey = process.env.OPENAI_API_KEY;
 
   beforeEach(async () => {
+    process.env.OPENAI_API_KEY = 'test-openai-key';
     prisma = new InMemoryParticipantsPrisma();
     app = await createTestApp(prisma);
   });
 
   afterEach(async () => {
     await app.close();
+    if (previousOpenAiKey === undefined) {
+      delete process.env.OPENAI_API_KEY;
+    } else {
+      process.env.OPENAI_API_KEY = previousOpenAiKey;
+    }
   });
 
   it('registers 30 participants with sequential anonymous names', async () => {
@@ -326,6 +333,30 @@ describe('Participant REST API', () => {
         modelName: 'gpt-5',
       })
       .expect(400);
+  });
+
+  it('rejects provider registration immediately when the API key is missing', async () => {
+    await app.close();
+    delete process.env.OPENAI_API_KEY;
+    prisma = new InMemoryParticipantsPrisma();
+    app = await createTestApp(prisma);
+
+    const response = await request(app.getHttpServer())
+      .post('/api/projects/participant-project/participants')
+      .send({
+        participantType: 'provider',
+        providerName: 'openai',
+        modelName: 'gpt-5',
+      })
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      error: 'MissingApiKeyError',
+      message:
+        'Missing OPENAI_API_KEY. Set it in ~/.llm-salon/.env (copy from .env.example) and try again.',
+      statusCode: 400,
+    });
+    expect(prisma.project.findUnique).not.toHaveBeenCalled();
   });
 });
 

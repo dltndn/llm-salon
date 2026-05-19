@@ -17,7 +17,10 @@ import {
   ParticipantConflictError,
   RegistrationClosedError,
 } from '../common/errors/domain.errors';
+import { DOMAIN_EVENT, DomainEvent } from '../events/domain-events';
+import { DomainEventBus } from '../events/event-bus';
 import { PrismaService } from '../prisma/prisma.service';
+import { ProviderKeyService } from '../security/provider-key.service';
 import { anonymousNameForJoinOrder } from './anonymous-name';
 import { RegisterParticipantDto } from './dto/register-participant.dto';
 import { serializeRegisteredParticipant } from './participant.presenter';
@@ -26,16 +29,26 @@ type ParticipantTransaction = Prisma.TransactionClient;
 
 @Injectable()
 export class ParticipantsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: DomainEventBus,
+    private readonly providerKeys: ProviderKeyService,
+  ) {}
 
   async registerParticipant(
     projectSlug: string,
     dto: RegisterParticipantDto,
     audience: Audience,
   ) {
+    const normalized = this.normalizeRegistration(dto);
+
+    if (normalized.participantType === ParticipantType.provider) {
+      this.providerKeys.assertProviderAvailable(normalized.providerName);
+    }
+
+    const domainEvents: DomainEvent[] = [];
     const participant = await this.prisma.$transaction(async (tx) => {
       const project = await this.findProjectForRegistration(tx, projectSlug);
-      const normalized = this.normalizeRegistration(dto);
 
       await tx.$queryRaw`
         SELECT id FROM projects WHERE id = ${project.id}::uuid FOR UPDATE
@@ -45,7 +58,7 @@ export class ParticipantsService {
       const joinOrder = await this.nextJoinOrder(tx, project.id);
 
       try {
-        return await tx.participant.create({
+        const participant = await tx.participant.create({
           data: {
             projectId: project.id,
             displayName: normalized.displayName,
@@ -58,11 +71,29 @@ export class ParticipantsService {
             joinOrder,
           },
         });
+        domainEvents.push({
+          type: DOMAIN_EVENT.participantJoined,
+          payload: {
+            projectId: project.id,
+            projectSlug: project.slug,
+            participant: {
+              id: participant.id,
+              displayName: participant.displayName,
+              status: participant.status,
+            },
+          },
+        });
+
+        return participant;
       } catch (error) {
         this.rethrowRegistrationConflict(error, normalized);
         throw error;
       }
     });
+
+    for (const event of domainEvents) {
+      this.events.emit(event);
+    }
 
     return serializeRegisteredParticipant(participant, audience);
   }
@@ -108,7 +139,7 @@ export class ParticipantsService {
     return {
       participantType: ParticipantType.provider,
       clientName: null,
-      providerName: dto.providerName,
+      providerName: dto.providerName.toLowerCase(),
       modelName: dto.modelName,
       displayName: dto.modelName,
     };

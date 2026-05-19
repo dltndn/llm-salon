@@ -100,6 +100,7 @@ export class GoogleAdapter implements LlmAdapter {
         throw new ProviderCallFailedError(
           this.providerName,
           this.formatProviderError(error),
+          this.isTimeout(error) ? 'timeout' : 'bad_gateway',
         );
       }
     }
@@ -161,6 +162,10 @@ export class GoogleAdapter implements LlmAdapter {
     }
 
     return false;
+  }
+
+  private isTimeout(error: unknown): boolean {
+    return error instanceof GoogleGenerativeAIAbortError;
   }
 
   private formatProviderError(error: unknown): string {

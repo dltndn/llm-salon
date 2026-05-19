@@ -103,6 +103,7 @@ export class AnthropicAdapter implements LlmAdapter {
         throw new ProviderCallFailedError(
           this.providerName,
           this.formatProviderError(error),
+          this.isTimeout(error) ? 'timeout' : 'bad_gateway',
         );
       }
     }
@@ -171,6 +172,10 @@ export class AnthropicAdapter implements LlmAdapter {
     }
 
     return false;
+  }
+
+  private isTimeout(error: unknown): boolean {
+    return error instanceof APIConnectionTimeoutError;
   }
 
   private formatProviderError(error: unknown): string {

@@ -31,6 +31,7 @@ export class TurnEngineService {
   async advanceFromCurrentTurn(
     tx: TurnTransaction,
     currentTurn: Turn,
+    currentTurnStatus: TurnStatus = TurnStatus.completed,
   ): Promise<Turn[]> {
     const [participants, roundStart] = await Promise.all([
       tx.participant.findMany({
@@ -55,14 +56,17 @@ export class TurnEngineService {
       roundStartedAt: roundStart,
     });
 
+    await tx.turn.update({
+      where: { id: currentTurn.id },
+      data:
+        currentTurnStatus === TurnStatus.skipped
+          ? { status: currentTurnStatus, currentParticipantId: null }
+          : { status: currentTurnStatus },
+    });
+
     if (result.plannedTurns.length === 0) {
       return [];
     }
-
-    await tx.turn.update({
-      where: { id: currentTurn.id },
-      data: { status: TurnStatus.completed },
-    });
 
     const createdTurns: Turn[] = [];
     for (const plannedTurn of result.plannedTurns) {
