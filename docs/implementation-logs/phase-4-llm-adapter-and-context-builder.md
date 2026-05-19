@@ -352,3 +352,95 @@
 - For Task 4.5, keep provider/model names out of the context-builder public anonymous payload and pass them only through `summaryParticipants`.
 - Use `ContextBuilderService` output directly as `{ systemPrompt, contextMessages }` for adapter calls; choose the provider participant's `modelName` at the auto-speak layer.
 - Preserve the anonymous guard and human-identifier regex checks when adding the MCP `get_context` path.
+
+## Entry: 2026-05-19 Task 4.5
+
+**Worker context:**
+- Phase: Phase 4
+- Task: Task 4.5: Provider participant registration and auto-speak
+- Dependencies reviewed:
+  - Task 4.4
+  - Task 3.1
+  - Phase 2 anonymization / turn engine log
+  - Phase 3 SSE / EJS dashboard log
+  - Phase 4 implementation log through Task 4.4
+  - `docs/specs/02-domain-model.md`
+  - `docs/specs/03-modules.md`
+  - `docs/specs/04-database.md`
+  - `docs/specs/05-api.md`
+  - `docs/specs/07-llm-integration.md`
+  - `docs/specs/08-security.md`
+  - `docs/specs/09-cli.md`
+  - `docs/specs/10-testing.md`
+
+**What was done:**
+- Added provider API-key availability caching in `SecurityModule`; provider registration now validates the provider key before touching project/participant state and returns `MissingApiKeyError` with `.env.example` guidance.
+- Added `llm-salon provider add <provider> --project <p> --model <m>` and improved CLI HTTP errors so server-side provider-key guidance is printed directly.
+- Added `ProviderParticipantService` that listens for `turn.changed`, detects provider turns, builds an anonymized context, calls the resolved adapter, and submits the generated message through `MessagesService.submitMessage()`.
+- Added provider-call failure handling that marks the failed provider turn as `skipped`, clears `currentParticipantId` to match the DB spec, advances the next turn, and emits the existing `turn.changed` SSE path.
+- Extended `ProviderCallFailedError` with timeout classification so HTTP mapping can return `504 Gateway Timeout` for timeout failures and `502 Bad Gateway` otherwise.
+- Added mock adapter e2e coverage for two providers speaking in round-robin, provider call failure skip behavior, empty provider output handling, and post-generation message persistence failure behavior.
+
+**Why it matters for the next worker:**
+- Provider auto-speak now uses the normal message transaction path after successful generation; do not bypass `MessagesService.submitMessage()` in downstream provider/report work.
+- Provider-call failures intentionally skip and advance, but post-generation persistence failures are log-only and leave the provider turn `in_progress` so content is not silently dropped.
+- `ProviderKeyService` is the in-memory boot-time provider availability source; downstream CLI/API provider additions should reuse it rather than reading raw API keys in controllers/services.
+
+**Dependency impact:**
+- Satisfies Task 4.5 and closes Phase 4 implementation scope.
+- Unblocks Phase 5 MCP context and Phase 6 report work that depend on provider adapter lookup, context building, and provider auto-speak.
+- Keeps public SSE event names aligned with `05-api.md`; provider skip advances are visible through the existing `turn.changed` event.
+
+**Files touched:**
+- `src/cli/cli.module.ts`
+- `src/cli/http-client.ts`
+- `src/cli/provider-add.command.ts`
+- `src/common/errors/domain-exception.filter.ts`
+- `src/common/errors/domain-exception.filter.spec.ts`
+- `src/llm/anthropic.adapter.ts`
+- `src/llm/google.adapter.ts`
+- `src/llm/llm.errors.ts`
+- `src/llm/openai.adapter.ts`
+- `src/participants/participants.module.ts`
+- `src/participants/participants.service.ts`
+- `src/participants/provider-participant.service.ts`
+- `src/security/provider-key.service.ts`
+- `src/security/security.module.ts`
+- `src/turns/turn-engine.service.ts`
+- `test/auto-speak.spec.ts`
+- `test/participants.spec.ts`
+- `test/test-app.ts`
+
+**Commit:**
+- `4f26289`
+
+**Verification completed:**
+- [x] `./node_modules/.bin/jest test/auto-speak.spec.ts test/participants.spec.ts test/messages.spec.ts test/sse.spec.ts src/turns src/common src/llm --runInBand`
+- [x] `./node_modules/.bin/jest src/prompt src/documents src/common --runInBand`
+- [x] `./node_modules/.bin/tsc --noEmit`
+- [x] `./node_modules/.bin/eslint "src/participants/**/*.ts" "src/turns/**/*.ts" "src/events/**/*.ts" "src/sse/**/*.ts" "src/security/**/*.ts" "src/cli/**/*.ts" "src/common/errors/**/*.ts" "src/llm/**/*.ts" "test/auto-speak.spec.ts" "test/participants.spec.ts" "test/test-app.ts"`
+- [x] Review subagent `gpt-5.4` reviewed Task 4.5, findings were addressed, and final re-review reported no blockers.
+
+**Not verified:**
+- [ ] Real provider auto-speak with `LLM_SALON_E2E=1`, because this session did not enable provider API key E2E flows.
+- [ ] Full repository test suite; validation was scoped to Phase 4 provider/auto-speak and impacted LLM, turn, SSE, and common modules.
+
+**Open risks or follow-ups:**
+- If `MessagesService.submitMessage()` fails after successful provider generation, the provider turn remains `in_progress` and the failure is logged only. A future retry/recovery mechanism may be needed if this becomes operationally noisy.
+- The auto-speak e2e uses mocked adapters and in-memory Prisma; real DB/provider timing should be smoke-tested when API keys and DB integration are available.
+
+**Instructions for the next worker:**
+- For Phase 5 MCP work, use the existing anonymous context builder and provider auto-speak path rather than adding a second prompt assembly path.
+- Keep provider/model metadata out of anonymous prompt payloads; provider-only metadata belongs in private service options such as `summaryParticipants`.
+- Preserve the documented SSE event surface unless the specs are updated first.
+
+## Phase 4 Checkpoint: 2026-05-19
+
+**Checkpoint status:**
+- [x] OpenAI mock auto-speak completes provider round-robin through `test/auto-speak.spec.ts`.
+- [x] Anonymization guard regressions are green through `src/common` and prompt/context tests from Task 4.4.
+- [ ] `LLM_SALON_E2E=1` real key call was not run because provider API key E2E flows were not enabled in this session.
+
+**Phase 4 closeout:**
+- Phase 4 implementation tasks 4.1 through 4.5 now have dedicated implementation commits and matching task log entries.
+- Remaining Phase 4 risk is limited to real-provider smoke coverage and downstream integration of the context payload into MCP/report flows.
