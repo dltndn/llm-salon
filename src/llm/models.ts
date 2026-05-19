@@ -7,6 +7,24 @@ export interface LlmModelMetadata {
 }
 
 export const LLM_MODEL_METADATA = {
+  'gpt-5.5': {
+    providerName: 'openai',
+    modelName: 'gpt-5.5',
+    contextWindowTokens: 1_000_000,
+    recommendedMaxOutputTokens: 128_000,
+  },
+  'gpt-5.4': {
+    providerName: 'openai',
+    modelName: 'gpt-5.4',
+    contextWindowTokens: 1_000_000,
+    recommendedMaxOutputTokens: 128_000,
+  },
+  'gpt-5.4-mini': {
+    providerName: 'openai',
+    modelName: 'gpt-5.4-mini',
+    contextWindowTokens: 400_000,
+    recommendedMaxOutputTokens: 128_000,
+  },
   'gpt-4o': {
     providerName: 'openai',
     modelName: 'gpt-4o',

@@ -65,6 +65,22 @@ describe('context policy', () => {
     });
   });
 
+  it.each([
+    ['gpt-5.5', 1_000_000, 128_000],
+    ['gpt-5.4', 1_000_000, 128_000],
+    ['gpt-5.4-mini', 400_000, 128_000],
+  ] as const)(
+    'exposes OpenAI %s model metadata',
+    (modelName, contextWindowTokens, recommendedMaxOutputTokens) => {
+      expect(getModelMetadata(modelName)).toEqual({
+        providerName: 'openai',
+        modelName,
+        contextWindowTokens,
+        recommendedMaxOutputTokens,
+      });
+    },
+  );
+
   it('does not subtract recommended output tokens from the input context budget', () => {
     const model = getModelMetadata('gpt-4');
 
