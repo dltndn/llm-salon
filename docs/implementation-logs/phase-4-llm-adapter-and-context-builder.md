@@ -280,3 +280,75 @@
 - For Task 4.4, use `LlmProviderRegistry.get(providerName)` as the adapter lookup path.
 - Keep raw provider API keys inside adapter classes only.
 - Preserve mock-default adapter tests; run real provider calls only behind `LLM_SALON_E2E=1`.
+
+## Entry: 2026-05-19 Task 4.4
+
+**Worker context:**
+- Phase: Phase 4
+- Task: Task 4.4: Context builder + anonymization
+- Dependencies reviewed:
+  - Task 4.1
+  - Task 4.2
+  - Task 4.3
+  - Phase 2 anonymization / turn engine log
+  - Phase 4 implementation log through Task 4.3
+  - `docs/specs/02-domain-model.md`
+  - `docs/specs/03-modules.md`
+  - `docs/specs/05-api.md`
+  - `docs/specs/07-llm-integration.md`
+  - `docs/specs/10-testing.md`
+
+**What was done:**
+- Added `ContextBuilderService` that assembles the LLM context in the spec order: fixed English system prompt, system status block, topic metadata, inline documents, anonymous participant list, previous messages, turn instruction, and an empty assistant slot.
+- Added `SummarizerService` with the single-source `SUMMARY_SYSTEM_PROMPT`, first-participant ownership selection, provider-only synchronous summary calls through `LlmProviderRegistry`, summary cadence enforcement, and sliding-window fallback with `[older messages omitted]`.
+- Added context-builder guards for anonymous-only payload shape and human-identifier regex leakage before returning LLM-facing output.
+- Added document size policy helper that throws `DocumentTooLargeError` when a file exceeds the active context profile limit, plus `413 Payload Too Large` HTTP mapping that preserves the remediation message.
+- Imported `PromptModule` into the root app graph so Task 4.5 can inject the context builder and summarizer.
+
+**Why it matters for the next worker:**
+- Task 4.5 can call `ContextBuilderService.build(input, { summaryParticipants })`; the public prompt input must remain anonymous, while `summaryParticipants` is the private provider/model metadata channel used only to choose the summary adapter.
+- `SummarizerService` catches provider lookup/call failures and falls back to the placeholder path, so downstream auto-speak should treat context building as best-effort around historical message compression.
+- `SUMMARY_SYSTEM_PROMPT` and `buildDebateSystemPrompt()` are now the prompt sources of truth for summary and debate calls.
+
+**Dependency impact:**
+- Satisfies Task 4.4 for provider auto-speak and MCP context work.
+- Introduces `PromptModule` as the app-graph integration point for prompt services.
+- Adds `DocumentTooLargeError`; document upload implementation must call `assertDocumentWithinProfileLimit()` before accepting inline content or file registration.
+
+**Files touched:**
+- `src/app.module.ts`
+- `src/common/errors/domain-exception.filter.ts`
+- `src/common/errors/domain-exception.filter.spec.ts`
+- `src/common/errors/domain.errors.ts`
+- `src/common/interceptors/anonymous-guard.interceptor.ts`
+- `src/documents/document-size-policy.ts`
+- `src/documents/__tests__/document-size-policy.spec.ts`
+- `src/prompt/context-builder.service.ts`
+- `src/prompt/prompt.module.ts`
+- `src/prompt/summarizer.service.ts`
+- `src/prompt/summary-prompt.ts`
+- `src/prompt/system-prompt.ts`
+- `src/prompt/__tests__/context-builder.service.spec.ts`
+
+**Commit:**
+- `06a89a2`
+
+**Verification completed:**
+- [x] `./node_modules/.bin/jest src/prompt src/documents src/common/errors --runInBand`
+- [x] `./node_modules/.bin/tsc --noEmit`
+- [x] `./node_modules/.bin/eslint "src/prompt/**/*.ts" "src/documents/**/*.ts" "src/common/errors/**/*.ts" "src/common/interceptors/**/*.ts" "src/app.module.ts"`
+- [x] Review subagent `gpt-5.4` reviewed Task 4.4, findings were addressed, and re-review reported no blockers.
+
+**Not verified:**
+- [ ] Live HTTP/MCP context endpoint behavior, because those route/tool integrations are scheduled for downstream tasks.
+- [ ] Real provider summary calls with `LLM_SALON_E2E=1`, because this session did not enable provider API key E2E flows.
+- [ ] Full repository test suite; validation was scoped to prompt, document-size policy, domain error mapping, typecheck, and targeted lint.
+
+**Open risks or follow-ups:**
+- Previous-message retention currently uses the profile retention ratio as a message-count window, not a full token-packing algorithm. If downstream provider calls hit token limits, replace the count-based split with `estimateTokenCount()`-based packing.
+- The document-size policy is ready, but no document upload controller/service exists yet; the upload task must wire it into the actual registration path.
+
+**Instructions for the next worker:**
+- For Task 4.5, keep provider/model names out of the context-builder public anonymous payload and pass them only through `summaryParticipants`.
+- Use `ContextBuilderService` output directly as `{ systemPrompt, contextMessages }` for adapter calls; choose the provider participant's `modelName` at the auto-speak layer.
+- Preserve the anonymous guard and human-identifier regex checks when adding the MCP `get_context` path.
