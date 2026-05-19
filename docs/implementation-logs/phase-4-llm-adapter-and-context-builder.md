@@ -58,3 +58,64 @@
 - Read `docs/specs/07-llm-integration.md` before building Task 4.2 or Task 4.3.
 - Preserve the rule that raw provider API keys are read only in `src/llm`.
 - Keep default tests mocked; run real provider calls only behind `LLM_SALON_E2E=1`.
+
+## Entry: 2026-05-19 Task 4.2
+
+**Worker context:**
+- Phase: Phase 4
+- Task: Task 4.2: Model metadata and context policy
+- Dependencies reviewed:
+  - Task 0.2
+  - Task 4.1
+  - Phase 0 log
+  - Phase 4 Task 4.1 log
+  - `docs/specs/07-llm-integration.md`
+  - `docs/specs/08-security.md`
+  - `docs/specs/10-testing.md`
+
+**What was done:**
+- Added hardcoded model metadata in `src/llm/models.ts` for OpenAI text models currently used by the project path (`gpt-4o`, `gpt-4o-mini`, `gpt-4`).
+- Added conservative token estimation helper using the spec fallback of roughly 4 characters per token.
+- Added `src/llm/context-policy.ts` as the source of truth for profile ratios, document inline caps, previous message retention ratios, and calculated token budgets.
+- Exported `normalizeContextProfile()` from `src/config/env.schema.ts` and reused it in context policy resolution so profile fallback stays aligned with Task 0.2 env normalization.
+- Added unit tests for per-profile document caps, retention ratios, token cap math, invalid/missing env fallback, and the `gpt-4` regression where output tokens must not collapse the input context budget.
+
+**Why it matters for the next worker:**
+- Task 4.3 can use `calculateContextTokenBudget()` and `getContextProfilePolicy()` instead of duplicating profile math.
+- Attached-document upload limits should use `CONTEXT_PROFILE_POLICIES` to preserve the spec's single source of truth.
+- Model output metadata is intentionally separate from the input context cap; do not subtract output tokens from `maxInputTokens`.
+
+**Dependency impact:**
+- Satisfies Task 4.2 for Task 4.3 context builder work.
+- Extends the Task 0.2 env module with a reusable context-profile normalizer.
+- Does not add new npm dependencies.
+
+**Files touched:**
+- `src/config/env.schema.ts`
+- `src/llm/models.ts`
+- `src/llm/context-policy.ts`
+- `src/llm/__tests__/context-policy.spec.ts`
+
+**Commit:**
+- `7a1968a70ed2c8cfc5f93d41ef6ff9e678500bba`
+
+**Verification completed:**
+- [x] `./node_modules/.bin/jest src/llm/__tests__/context-policy.spec.ts`
+- [x] `./node_modules/.bin/jest src/llm`
+- [x] `./node_modules/.bin/jest src/llm/__tests__/context-policy.spec.ts src/config/__tests__/env.schema.spec.ts`
+- [x] `./node_modules/.bin/tsc --noEmit`
+- [x] `./node_modules/.bin/eslint "src/llm/**/*.ts"`
+- [x] `./node_modules/.bin/eslint "src/llm/**/*.ts" src/config/env.schema.ts src/config/__tests__/env.schema.spec.ts`
+- [x] Review subagent `gpt-5.4` reviewed Task 4.2, findings were addressed, and re-review reported no blocker.
+
+**Not verified:**
+- [ ] Full repository test suite, because Task 4.2 only changes LLM policy math and env profile normalization.
+
+**Open risks or follow-ups:**
+- Model metadata is intentionally not exhaustive; add provider/model entries as Anthropic and Google adapters are implemented.
+- `resolveContextProfile()` now shares the env warning path, so repeated calls with an invalid raw env value can emit repeated warnings until boot-time normalization has corrected `process.env`.
+
+**Instructions for the next worker:**
+- For Task 4.3, import context limits from `src/llm/context-policy.ts`; do not copy the table into prompt code.
+- Use `maxInputTokens` as the profile-derived input context cap and keep `recommendedMaxOutputTokens` as separate output guidance.
+- If new provider models are accepted from registration, add their metadata to `src/llm/models.ts` or define explicit unknown-model handling before using the context builder.
