@@ -231,5 +231,20 @@
 - `DocumentsService` still writes under `LLM_SALON_HOME/documents/` without traversal guards; consider a follow-up if attachments accept user-supplied names at scale.
 
 **Instructions for the next worker:**
-- Run Phase 6 checkpoint (full mock e2e `preparing → finalized`; confirm report file on disk matches DB `file_path` and content).
-- Proceed to Phase 7 Task 7.1 (README / user guide) once checkpoint passes.
+- Proceed to Phase 7 Task 7.1 (README / user guide).
+
+---
+
+## Checkpoint: Phase 6
+
+- [x] One topic runs `preparing → finalized` end-to-end with mock LLM (`test/report-pipeline.spec.ts` — `runs preparing through finalized with mock LLM (phase 6 checkpoint)`).
+- [x] Report file on disk matches DB `reports.file_path` and `finalContent` (`readFile(report.filePath)` assertion in the same test).
+
+**Verification completed:**
+- [x] `npm test -- test/report-pipeline.spec.ts test/reports-drafting.spec.ts test/messages.spec.ts src/storage/__tests__/local-storage.spec.ts src/reports/__tests__/reporter-selector.spec.ts`
+- [x] `npm run typecheck`
+- [x] `npm run lint`
+
+**Not verified:**
+- [ ] Full repository `jest --runInBand`
+- [ ] Real DB integration for report pipeline
