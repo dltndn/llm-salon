@@ -1,6 +1,3 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
-
 import {
   Injectable,
   Logger,
@@ -37,6 +34,7 @@ import {
 } from '../prompt/report-prompts';
 import { assertNoHumanIdentifierText } from '../prompt/prompt-input';
 import { PrismaService } from '../prisma/prisma.service';
+import { LocalStorageService } from '../storage/local-storage.service';
 
 type ReportPipelineJob = {
   projectId: string;
@@ -67,6 +65,7 @@ export class ReportPipelineService implements OnModuleInit, OnModuleDestroy {
     private readonly registry: LlmProviderRegistry,
     private readonly documents: DocumentsService,
     private readonly config: ConfigService,
+    private readonly storage: LocalStorageService,
   ) {}
 
   onModuleInit(): void {
@@ -201,7 +200,7 @@ export class ReportPipelineService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    const filePath = await this.writeFinalReportFile(
+    const filePath = await this.storage.writeReportMarkdown(
       payload.projectSlug,
       payload.topicId,
       finalContent,
@@ -527,23 +526,6 @@ export class ReportPipelineService implements OnModuleInit, OnModuleDestroy {
           `${names.get(message.participantId) ?? 'Unknown member'}: ${message.content}`,
       ),
     ].join('\n');
-  }
-
-  private async writeFinalReportFile(
-    projectSlug: string,
-    topicId: string,
-    content: string,
-  ): Promise<string> {
-    const home = this.config.get<string>(
-      'LLM_SALON_HOME',
-      process.env.LLM_SALON_HOME ?? '.',
-    );
-    const directory = join(home, 'projects', projectSlug, 'reports');
-    await mkdir(directory, { recursive: true });
-    const filePath = join(directory, `${topicId}-${Date.now()}.md`);
-    await writeFile(filePath, content, 'utf8');
-
-    return filePath;
   }
 
   private emitEvents(domainEvents: DomainEvent[]): void {

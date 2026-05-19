@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import * as fsPromises from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -512,6 +512,9 @@ describe('Report pipeline e2e', () => {
       new RegExp(
         `^${tempHome.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/projects/report-pipeline-project/reports/`,
       ),
+    );
+    await expect(readFile(report.filePath!, 'utf8')).resolves.toBe(
+      '# Final report',
     );
     expect(adapter.generate).toHaveBeenCalledTimes(3);
     expect(
