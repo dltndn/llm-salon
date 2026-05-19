@@ -82,6 +82,19 @@ function normalizeEnumValue<T extends readonly string[]>(
   return fallbackValue;
 }
 
+export function normalizeContextProfile(
+  value: unknown,
+  logger: EnvWarningLogger = envLogger,
+): LlmSalonContextProfile {
+  return normalizeEnumValue(
+    'LLM_SALON_CONTEXT_PROFILE',
+    value,
+    LLM_SALON_CONTEXT_PROFILES,
+    DEFAULT_LLM_SALON_CONTEXT_PROFILE,
+    logger,
+  );
+}
+
 export function validateEnv(
   input: Record<string, unknown>,
   logger: EnvWarningLogger = envLogger,
@@ -89,11 +102,8 @@ export function validateEnv(
   return {
     ...input,
     LLM_SALON_PORT: normalizePort(input.LLM_SALON_PORT, logger),
-    LLM_SALON_CONTEXT_PROFILE: normalizeEnumValue(
-      'LLM_SALON_CONTEXT_PROFILE',
+    LLM_SALON_CONTEXT_PROFILE: normalizeContextProfile(
       input.LLM_SALON_CONTEXT_PROFILE,
-      LLM_SALON_CONTEXT_PROFILES,
-      DEFAULT_LLM_SALON_CONTEXT_PROFILE,
       logger,
     ),
     LLM_SALON_OUTPUT_LANGUAGE: normalizeEnumValue(
