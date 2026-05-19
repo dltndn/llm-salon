@@ -226,6 +226,17 @@ class InMemoryReportPipelinePrisma {
 
       return Promise.resolve({ ...this.turns[index] });
     }),
+    create: jest.fn(({ data }) => {
+      const turn: Turn = {
+        id: `turn-${this.turns.length + 1}`,
+        createdAt: now,
+        updatedAt: now,
+        ...data,
+      };
+      this.turns.push(turn);
+
+      return Promise.resolve({ ...turn });
+    }),
   };
 
   readonly message = {
@@ -328,6 +339,29 @@ class InMemoryReportPipelinePrisma {
 
   getReports(): Report[] {
     return [...this.reports];
+  }
+
+  getInProgressTurn(): Turn | undefined {
+    return this.turns.find((turn) => turn.status === TurnStatus.in_progress);
+  }
+
+  seedPreparingForCheckpoint(): void {
+    this.topicRecord = {
+      ...this.topicRecord,
+      phase: TopicPhase.preparing,
+      maxTurns: 1,
+      reporterParticipantId: null,
+    };
+    this.turns = [
+      {
+        ...this.turns[0],
+        phase: TopicPhase.preparing,
+        status: TurnStatus.in_progress,
+        turnIndex: 1,
+        currentParticipantId: appParticipantId,
+      },
+    ];
+    this.reports = [];
   }
 
   seedReviewingState(reportStatus: ReportStatus = ReportStatus.reviewing): void {
@@ -457,6 +491,71 @@ describe('Report pipeline e2e', () => {
     events = app.get(DomainEventBus);
     jest.spyOn(events, 'emit');
   }
+
+  it('runs preparing through finalized with mock LLM (phase 6 checkpoint)', async () => {
+    prisma.seedPreparingForCheckpoint();
+    adapter.generate
+      .mockResolvedValueOnce({ content: '# Draft report' })
+      .mockResolvedValueOnce({ content: 'Revision notes' })
+      .mockResolvedValueOnce({ content: '# Final report' });
+    await bootApp();
+
+    expect(prisma.getTopicRecord().phase).toBe(TopicPhase.preparing);
+
+    const opening = await request(app.getHttpServer())
+      .post(
+        `/api/projects/report-pipeline-project/topics/${topicId}/messages`,
+      )
+      .send({
+        participantId: appParticipantId,
+        content: 'Opening statement',
+      })
+      .expect(201);
+
+    expect(opening.body.phaseAfter).toBe(TopicPhase.debating);
+    await waitFor(() =>
+      expect(prisma.getTopicRecord().phase).toBe(TopicPhase.debating),
+    );
+
+    const debateTurn = prisma.getInProgressTurn();
+    expect(debateTurn?.currentParticipantId).toBeDefined();
+
+    await request(app.getHttpServer())
+      .post(
+        `/api/projects/report-pipeline-project/topics/${topicId}/messages`,
+      )
+      .send({
+        participantId: debateTurn!.currentParticipantId!,
+        content: 'Debate limit turn',
+      })
+      .expect(201);
+
+    await waitFor(() =>
+      expect(prisma.getTopicRecord().phase).toBe(TopicPhase.reviewing),
+    );
+
+    await submitAllFeedback(app);
+
+    await waitFor(() =>
+      expect(prisma.getTopicRecord().phase).toBe(TopicPhase.finalized),
+    );
+
+    const report = prisma.getReports()[0];
+    expect(report).toMatchObject({
+      status: ReportStatus.finalized,
+      finalContent: '# Final report',
+    });
+    expect(report.filePath).toMatch(
+      new RegExp(
+        `^${tempHome.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/projects/report-pipeline-project/reports/`,
+      ),
+    );
+    await expect(readFile(report.filePath!, 'utf8')).resolves.toBe(
+      '# Final report',
+    );
+    expect(report.filePath).toBeTruthy();
+    expect(adapter.generate).toHaveBeenCalledTimes(3);
+  });
 
   it('runs drafting through finalized with mock LLM', async () => {
     adapter.generate
