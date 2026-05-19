@@ -163,3 +163,72 @@
 **Instructions for the next worker:**
 - Start Task 6.3 by extracting `writeFinalReportFile()` from `ReportPipelineService` into `storage/local-storage.service.ts` with base-path checks.
 - Keep report pipeline event-driven; avoid synchronous LLM calls inside message transactions.
+
+---
+
+## Entry: 2026-05-19 Task 6.3
+
+**Worker context:**
+- Phase: Phase 6
+- Task: Task 6.3 — Report file storage and path guard
+- Dependencies reviewed:
+  - Task 6.2 (`phase-6-report-pipeline.md` entry above)
+  - `08-security.md` File System Boundaries
+  - `01-architecture.md` User Data Directory
+
+**What was done:**
+- Added `LocalStorageService` with `resolveProjectRelativePath()` and `writeReportMarkdown()` under `src/storage/`.
+- Enforced safe path segments (`..`, separators, null bytes rejected) and `path.resolve` + base-prefix checks (project base for relative paths; `reports/` base for final Markdown writes).
+- `writeReportMarkdown()` validates `topicId` and the generated filename before join; final path must stay under `projects/<slug>/reports/`.
+- Report filenames keep `<topicId>-<timestamp>.md` for collision-safe re-runs.
+- Wired `StorageModule` into `ReportsModule`; `ReportPipelineService` delegates final Markdown I/O to storage.
+- Added unit tests for traversal rejection (project slug, segments, `topicId`), successful writes, and distinct timestamp filenames.
+- Extended `test/report-pipeline.spec.ts` to read the saved Markdown from `report.filePath` and assert it matches `finalContent`.
+
+**Why it matters for the next worker:**
+- Phase 7 README can reference centralized report storage under `LLM_SALON_HOME/projects/<slug>/reports/`.
+- Documents module may later reuse `LocalStorageService` for attachment path hardening (out of 6.3 scope).
+
+**Dependency impact:**
+- Satisfies Task 6.3 acceptance criteria (traversal block, timestamp suffix, `reports.file_path` unchanged contract).
+- Integration test asserts DB `filePath` prefix and on-disk Markdown equals `finalContent` (Phase 6 checkpoint partial).
+
+**Files touched:**
+- `src/storage/storage.errors.ts`
+- `src/storage/local-storage.service.ts`
+- `src/storage/storage.module.ts`
+- `src/storage/__tests__/local-storage.spec.ts`
+- `src/reports/report-pipeline.service.ts`
+- `src/reports/reports.module.ts`
+- `test/report-pipeline.spec.ts`
+
+**Review feedback (addressed before commit):**
+- **[P2] Report files escaping `reports/`:** `writeReportMarkdown()` now validates `topicId` and generated `fileName`, resolves against `reportsDirectory`, and checks containment under `reports/` (not only project base). Regression tests added for malformed `topicId`.
+- **[P3] Log overstated disk verification:** integration test now reads `report.filePath` and compares file content to `finalContent`; log wording adjusted.
+- **[P2] Same-millisecond filename collision:** `writeFile(..., { flag: 'wx' })` with retry using `<topicId>-<timestamp>-<n>.md` suffixes; regression test for two writes at the same `Date.now()`.
+- **[P3] Commit trailers:** Task 6.3 commits recreated without `Co-authored-by` tool attribution.
+
+**Commit:**
+- `338234d` (code); docs log in follow-up commit
+
+**Verification completed:**
+- [x] `pnpm test -- src/storage/__tests__/local-storage.spec.ts test/report-pipeline.spec.ts`
+- [x] `pnpm run typecheck`
+- [x] `pnpm run lint`
+
+**Not verified:**
+- [ ] Full repository `jest --runInBand`
+
+**Design decisions:**
+- `PathTraversalError` lives in `storage/` (not domain errors) because it is filesystem-boundary specific.
+- `resolveLlmSalonHome()` reused for home resolution consistency with boot/CLI paths.
+
+**Deviations from spec:**
+- None identified.
+
+**Open risks or follow-ups:**
+- `DocumentsService` still writes under `LLM_SALON_HOME/documents/` without traversal guards; consider a follow-up if attachments accept user-supplied names at scale.
+
+**Instructions for the next worker:**
+- After review approval, commit Task 6.3, then run Phase 6 checkpoint (full mock e2e `preparing → finalized`).
+- Phase 7 Task 7.1 depends on 6.3.
