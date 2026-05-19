@@ -119,3 +119,46 @@
 - For Task 4.3, import context limits from `src/llm/context-policy.ts`; do not copy the table into prompt code.
 - Use `maxInputTokens` as the profile-derived input context cap and keep `recommendedMaxOutputTokens` as separate output guidance.
 - If new provider models are accepted from registration, add their metadata to `src/llm/models.ts` or define explicit unknown-model handling before using the context builder.
+
+## Follow-up: 2026-05-19 Task 4.2 model metadata update
+
+**Worker context:**
+- Phase: Phase 4
+- Task: Task 4.2 follow-up: add requested OpenAI GPT 5 model metadata
+- Dependencies reviewed:
+  - Task 4.2
+  - Phase 4 Task 4.2 log
+  - `docs/specs/07-llm-integration.md`
+  - Official OpenAI model docs for GPT-5.5, GPT-5.4, and GPT-5.4 mini
+
+**What was done:**
+- Added OpenAI model metadata for `gpt-5.5`, `gpt-5.4`, and `gpt-5.4-mini`.
+- Added context policy tests that assert the new model metadata values.
+
+**Why it matters for the next worker:**
+- Provider registration or context builder code can now resolve metadata for the requested GPT 5 model IDs.
+- The API model IDs are hyphenated (`gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`), not space-separated labels.
+
+**Dependency impact:**
+- Extends Task 4.2 metadata coverage without changing context policy math.
+
+**Files touched:**
+- `src/llm/models.ts`
+- `src/llm/__tests__/context-policy.spec.ts`
+
+**Commit:**
+- `95e179c7ce67ae2ca259f2623953b831b3be7905`
+
+**Verification completed:**
+- [x] `./node_modules/.bin/jest src/llm/__tests__/context-policy.spec.ts`
+- [x] `./node_modules/.bin/tsc --noEmit`
+- [x] `./node_modules/.bin/eslint "src/llm/**/*.ts"`
+
+**Not verified:**
+- [ ] Real provider calls with the new models.
+
+**Open risks or follow-ups:**
+- Confirm account/project access to these model IDs before using them in E2E provider tests.
+
+**Instructions for the next worker:**
+- Use `getModelMetadata()` for these IDs instead of hardcoding windows in downstream code.
