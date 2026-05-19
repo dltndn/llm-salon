@@ -38,3 +38,12 @@ export class PhaseTransitionError extends Error {
     this.name = 'PhaseTransitionError';
   }
 }
+
+export class DocumentTooLargeError extends Error {
+  constructor(profile: string, limit: string) {
+    super(
+      `The attached file exceeds the current context profile (${profile}) limit (${limit}). Please split it into smaller files or raise LLM_SALON_CONTEXT_PROFILE.`,
+    );
+    this.name = 'DocumentTooLargeError';
+  }
+}

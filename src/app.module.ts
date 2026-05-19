@@ -8,6 +8,7 @@ import { ViewsController } from './http/views.controller';
 import { ViewsService } from './http/views.service';
 import { MessagesModule } from './messages/messages.module';
 import { ParticipantsModule } from './participants/participants.module';
+import { PromptModule } from './prompt/prompt.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProjectsModule } from './projects/projects.module';
 import { SseModule } from './sse/sse.module';
@@ -24,6 +25,7 @@ import { TurnsModule } from './turns/turns.module';
     ParticipantsModule,
     TurnsModule,
     MessagesModule,
+    PromptModule,
     SseModule,
   ],
   controllers: [HealthController, ViewsController],

@@ -7,6 +7,7 @@ import {
 import { Response } from 'express';
 
 import {
+  DocumentTooLargeError,
   DuplicateAppRegistrationError,
   PhaseTransitionError,
   ParticipantConflictError,
@@ -21,6 +22,7 @@ import { Audience } from '../audience';
   ParticipantConflictError,
   RegistrationClosedError,
   WrongTurnError,
+  DocumentTooLargeError,
 )
 export class DomainExceptionFilter implements ExceptionFilter {
   catch(exception: Error, host: ArgumentsHost): void {
@@ -28,13 +30,19 @@ export class DomainExceptionFilter implements ExceptionFilter {
     const request = http.getRequest<{ audience?: Audience }>();
     const response = http.getResponse<Response>();
 
-    response.status(HttpStatus.CONFLICT).json({
+    const statusCode =
+      exception instanceof DocumentTooLargeError
+        ? HttpStatus.PAYLOAD_TOO_LARGE
+        : HttpStatus.CONFLICT;
+
+    response.status(statusCode).json({
       error: exception.name,
       message:
-        request.audience === 'anonymous'
+        request.audience === 'anonymous' &&
+        !(exception instanceof DocumentTooLargeError)
           ? 'Request conflicts with the current project state.'
           : exception.message,
-      statusCode: HttpStatus.CONFLICT,
+      statusCode,
     });
   }
 }
