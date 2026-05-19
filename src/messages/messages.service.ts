@@ -3,6 +3,7 @@ import {
   MessageKind,
   ParticipantStatus,
   Prisma,
+  ReportStatus,
   Topic,
   TopicPhase,
   Turn,
@@ -10,6 +11,7 @@ import {
 } from '@prisma/client';
 
 import {
+  ParticipantConflictError,
   PhaseTransitionError,
   WrongTurnError,
 } from '../common/errors/domain.errors';
@@ -48,7 +50,22 @@ export class MessagesService {
   ): Promise<SubmittedMessageDto> {
     const domainEvents: DomainEvent[] = [];
     const result = await this.prisma.$transaction(async (tx) => {
-      const { projectId, topic } = await this.findTopic(tx, projectSlug, topicId);
+      const { projectId, projectSlug: slug, topic } = await this.findTopic(
+        tx,
+        projectSlug,
+        topicId,
+      );
+
+      if (topic.phase === TopicPhase.reviewing) {
+        return this.submitFeedback(tx, {
+          projectId,
+          projectSlug: slug,
+          topic,
+          dto,
+          domainEvents,
+        });
+      }
+
       const currentTurn = await this.lockAndFindCurrentTurn(tx, topic.id);
 
       this.assertCurrentTurn(currentTurn, dto.participantId);
@@ -232,6 +249,170 @@ export class MessagesService {
     return topic.phase;
   }
 
+  private async submitFeedback(
+    tx: MessageTransaction,
+    params: {
+      projectId: string;
+      projectSlug: string;
+      topic: Topic;
+      dto: SubmitMessageDto;
+      domainEvents: DomainEvent[];
+    },
+  ): Promise<{
+    message: Awaited<ReturnType<MessageTransaction['message']['create']>>;
+    nextTurn: null;
+    phaseAfter: TopicPhase;
+  }> {
+    const { projectId, projectSlug, topic, dto, domainEvents } = params;
+
+    await tx.$queryRaw`
+      SELECT id FROM topics WHERE id = ${topic.id}::uuid FOR UPDATE
+    `;
+
+    const participant = await tx.participant.findFirst({
+      where: {
+        id: dto.participantId,
+        projectId,
+        status: ParticipantStatus.active,
+      },
+    });
+
+    if (!participant) {
+      throw new WrongTurnError(null);
+    }
+
+    const existingFeedback = await tx.message.findFirst({
+      where: {
+        topicId: topic.id,
+        participantId: dto.participantId,
+        kind: MessageKind.feedback,
+      },
+      select: { id: true },
+    });
+
+    if (existingFeedback) {
+      throw new ParticipantConflictError(
+        'Feedback has already been submitted for this topic.',
+      );
+    }
+
+    const message = await tx.message.create({
+      data: {
+        projectId,
+        topicId: topic.id,
+        participantId: dto.participantId,
+        kind: MessageKind.feedback,
+        turnIndex: topic.currentTurnIndex,
+        roundIndex: topic.currentRound,
+        phase: TopicPhase.reviewing,
+        content: dto.content,
+      },
+      include: {
+        participant: {
+          select: { displayName: true },
+        },
+      },
+    });
+
+    domainEvents.push({
+      type: DOMAIN_EVENT.messageCreated,
+      payload: { projectId, projectSlug, topicId: topic.id, message },
+    });
+    await this.incrementTopicVersion(tx, topic.id);
+
+    const phaseAfter = await this.maybeAdvanceToFinalizing(
+      tx,
+      topic,
+      projectSlug,
+      domainEvents,
+    );
+
+    return { message, nextTurn: null, phaseAfter };
+  }
+
+  private async maybeAdvanceToFinalizing(
+    tx: MessageTransaction,
+    topic: Topic,
+    projectSlug: string,
+    domainEvents: DomainEvent[],
+  ): Promise<TopicPhase> {
+    const [activeParticipants, feedbackMessages, reports] = await Promise.all([
+      tx.participant.findMany({
+        where: {
+          projectId: topic.projectId,
+          status: ParticipantStatus.active,
+        },
+        select: { id: true },
+      }),
+      tx.message.findMany({
+        where: { topicId: topic.id, kind: MessageKind.feedback },
+        select: { participantId: true },
+      }),
+      tx.report.findMany({
+        where: { projectId: topic.projectId, topicId: topic.id },
+        take: 2,
+        select: {
+          id: true,
+          status: true,
+          draftContent: true,
+          finalContent: true,
+        },
+      }),
+    ]);
+
+    const feedbackParticipantIds = new Set(
+      feedbackMessages.map((message) => message.participantId),
+    );
+    const allFeedbackReceived = activeParticipants.every((participant) =>
+      feedbackParticipantIds.has(participant.id),
+    );
+
+    const report = this.resolveReportForFinalizing(reports);
+
+    if (!allFeedbackReceived || !report) {
+      return TopicPhase.reviewing;
+    }
+
+    await tx.report.update({
+      where: { id: report.id },
+      data: { status: ReportStatus.finalizing },
+    });
+    await this.transitionTopic(
+      tx,
+      topic,
+      projectSlug,
+      TopicPhase.finalizing,
+      domainEvents,
+    );
+
+    return TopicPhase.finalizing;
+  }
+
+  private resolveReportForFinalizing(
+    reports: Array<{
+      id: string;
+      status: ReportStatus;
+      draftContent: string | null;
+      finalContent: string | null;
+    }>,
+  ): { id: string } | null {
+    if (reports.length !== 1) {
+      return null;
+    }
+
+    const [report] = reports;
+
+    if (
+      report.status !== ReportStatus.reviewing ||
+      report.draftContent === null ||
+      report.finalContent !== null
+    ) {
+      return null;
+    }
+
+    return { id: report.id };
+  }
+
   private async reachedDebateLimit(
     tx: MessageTransaction,
     topic: Topic,
@@ -325,7 +506,8 @@ export class MessagesService {
   private isAllowedTransition(from: TopicPhase, to: TopicPhase): boolean {
     return (
       (from === TopicPhase.preparing && to === TopicPhase.debating) ||
-      (from === TopicPhase.debating && to === TopicPhase.drafting)
+      (from === TopicPhase.debating && to === TopicPhase.drafting) ||
+      (from === TopicPhase.reviewing && to === TopicPhase.finalizing)
     );
   }
 

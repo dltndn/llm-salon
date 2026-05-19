@@ -89,6 +89,10 @@ class InMemoryReportsDraftingPrisma {
 
   private reports: Report[] = [];
 
+  readonly document = {
+    findMany: jest.fn(() => Promise.resolve([])),
+  };
+
   readonly project = {
     findUnique: jest.fn(({ where }) =>
       Promise.resolve(
@@ -191,6 +195,8 @@ class InMemoryReportsDraftingPrisma {
         ...data,
       }),
     ),
+    findFirst: jest.fn(() => Promise.resolve(null)),
+    findMany: jest.fn(() => Promise.resolve([])),
   };
 
   readonly report = {
@@ -198,8 +204,13 @@ class InMemoryReportsDraftingPrisma {
       Promise.resolve(
         this.reports.find(
           (report) =>
-            report.projectId === where.projectId &&
-            report.topicId === where.topicId,
+            (where.id === undefined || report.id === where.id) &&
+            (where.projectId === undefined ||
+              report.projectId === where.projectId) &&
+            (where.topicId === undefined || report.topicId === where.topicId) &&
+            (where.status === undefined || report.status === where.status) &&
+            (where.draftContent === undefined ||
+              report.draftContent === where.draftContent),
         ) ?? null,
       ),
     ),

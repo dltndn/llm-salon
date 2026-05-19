@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import {
+  MessageKind,
   ParticipantStatus,
   ParticipantType,
   Report,
@@ -54,7 +55,13 @@ class InMemoryMessagesPrisma {
       updatedAt: now,
     },
   ];
-  private messages: unknown[] = [];
+  private messages: Array<{
+    id: string;
+    topicId: string;
+    participantId: string;
+    kind: MessageKind;
+    content: string;
+  }> = [];
   private reports: Report[] = [];
 
   setDebatingLimits(limits: { maxTurns?: number; maxRounds?: number }) {
@@ -67,6 +74,10 @@ class InMemoryMessagesPrisma {
   clearTurns() {
     this.turns = [];
   }
+
+  readonly document = {
+    findMany: jest.fn(() => Promise.resolve([])),
+  };
 
   readonly project = {
     findUnique: jest.fn(({ where }) =>
@@ -188,8 +199,13 @@ class InMemoryMessagesPrisma {
       Promise.resolve(
         this.reports.find(
           (report) =>
-            report.projectId === where.projectId &&
-            report.topicId === where.topicId,
+            (where.id === undefined || report.id === where.id) &&
+            (where.projectId === undefined ||
+              report.projectId === where.projectId) &&
+            (where.topicId === undefined || report.topicId === where.topicId) &&
+            (where.status === undefined || report.status === where.status) &&
+            (where.draftContent === undefined ||
+              report.draftContent === where.draftContent),
         ) ?? null,
       ),
     ),
@@ -244,6 +260,25 @@ class InMemoryMessagesPrisma {
 
       return Promise.resolve(message);
     }),
+    findFirst: jest.fn(({ where }) =>
+      Promise.resolve(
+        this.messages.find(
+          (message) =>
+            message.topicId === where.topicId &&
+            message.participantId === where.participantId &&
+            message.kind === where.kind,
+        ) ?? null,
+      ),
+    ),
+    findMany: jest.fn(({ where }) =>
+      Promise.resolve(
+        this.messages.filter(
+          (message) =>
+            message.topicId === where.topicId &&
+            (!where.kind || message.kind === where.kind),
+        ),
+      ),
+    ),
   };
 
   $transaction = jest.fn((callback) => callback(this));

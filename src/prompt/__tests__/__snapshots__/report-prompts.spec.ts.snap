@@ -1,0 +1,41 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`report-prompts includes Korean output language directive when configured 1`] = `
+"You are Member B, the assigned reporter for this debate.
+Do not infer, speculate, or mention the real model, application, or provider behind any member, including yourself.
+Produce a structured draft report in Markdown that synthesizes the debate so far.
+Include an executive summary, key positions, areas of agreement and disagreement, and open questions.
+
+Write the entire report (including section headings, bullet points, and summaries) in Korean.
+Preserve quoted code, identifiers, and technical terms in their original form when no natural translation exists."
+`;
+
+exports[`report-prompts matches snapshot for drafting stage 1`] = `
+"You are Member B, the assigned reporter for this debate.
+Do not infer, speculate, or mention the real model, application, or provider behind any member, including yourself.
+Produce a structured draft report in Markdown that synthesizes the debate so far.
+Include an executive summary, key positions, areas of agreement and disagreement, and open questions.
+
+Write the entire report (including section headings, bullet points, and summaries) in English.
+Preserve quoted code, identifiers, and technical terms in their original form when no natural translation exists."
+`;
+
+exports[`report-prompts matches snapshot for finalizing stage 1`] = `
+"You are Member B, the assigned reporter for this debate.
+Do not infer, speculate, or mention the real model, application, or provider behind any member, including yourself.
+Produce the final Markdown report incorporating the draft, revision notes, and debate outcomes.
+Include clear sections and a brief metadata appendix listing participant anonymous names only.
+
+Write the entire report (including section headings, bullet points, and summaries) in English.
+Preserve quoted code, identifiers, and technical terms in their original form when no natural translation exists."
+`;
+
+exports[`report-prompts matches snapshot for reviewing stage 1`] = `
+"You are Member B, the assigned reporter for this debate.
+Do not infer, speculate, or mention the real model, application, or provider behind any member, including yourself.
+Summarize all member feedback on the draft report into concise revision notes for the final report.
+Preserve disagreements and actionable suggestions.
+
+Write the entire report (including section headings, bullet points, and summaries) in English.
+Preserve quoted code, identifiers, and technical terms in their original form when no natural translation exists."
+`;
