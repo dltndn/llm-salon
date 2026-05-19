@@ -33,6 +33,7 @@ class InMemoryMessagesPrisma {
     maxTurns: null,
     currentRound: 0,
     currentTurnIndex: 1,
+    version: 0,
     reporterParticipantId: null,
     createdAt: now,
     updatedAt: now,
@@ -84,7 +85,7 @@ class InMemoryMessagesPrisma {
     update: jest.fn(({ data }) => {
       this.topicRecord = {
         ...this.topicRecord,
-        ...data,
+        ...applyTopicUpdateData(this.topicRecord, data),
         updatedAt: now,
       };
 
@@ -351,6 +352,24 @@ describe('Message REST API', () => {
     ]);
   });
 });
+
+function applyTopicUpdateData(
+  topic: Topic,
+  data: Omit<Partial<Topic>, 'version'> & {
+    version?: number | { increment: number };
+  },
+): Partial<Topic> {
+  const { version, ...rest } = data;
+
+  return {
+    ...rest,
+    ...(typeof version === 'object'
+      ? { version: topic.version + version.increment }
+      : version !== undefined
+        ? { version }
+        : {}),
+  };
+}
 
 const describeIfDatabase =
   process.env.DATABASE_URL === undefined ||

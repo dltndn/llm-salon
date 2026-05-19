@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import {
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -7,6 +8,8 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+
+const topicModes = ['consensus', 'options'] as const;
 
 export class CreateTopicDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
@@ -20,6 +23,10 @@ export class CreateTopicDto {
   @IsString()
   @MaxLength(4000)
   description?: string;
+
+  @IsOptional()
+  @IsIn(topicModes)
+  mode?: (typeof topicModes)[number];
 
   @IsOptional()
   @IsInt()

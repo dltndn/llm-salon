@@ -139,6 +139,10 @@ class InMemoryPrisma {
       return Promise.resolve(topic);
     }),
   };
+
+  readonly participant = {
+    findFirst: jest.fn(() => Promise.resolve(null)),
+  };
 }
 
 describe('Project and topic REST API', () => {

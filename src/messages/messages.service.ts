@@ -78,12 +78,14 @@ export class MessagesService {
         type: DOMAIN_EVENT.messageCreated,
         payload: { projectId, projectSlug, topicId: topic.id, message },
       });
+      await this.incrementTopicVersion(tx, topic.id);
 
       if (phaseAfter === TopicPhase.drafting) {
         await tx.turn.update({
           where: { id: currentTurn.id },
           data: { status: TurnStatus.completed },
         });
+        await this.incrementTopicVersion(tx, topic.id);
         await this.transitionTopic(
           tx,
           topic,
@@ -296,7 +298,7 @@ export class MessagesService {
 
     await tx.topic.update({
       where: { id: topic.id },
-      data: { phase },
+      data: { phase, version: { increment: 1 } },
     });
     domainEvents.push({
       type: DOMAIN_EVENT.topicPhaseChanged,
@@ -306,6 +308,16 @@ export class MessagesService {
         topicId: topic.id,
         phase,
       },
+    });
+  }
+
+  private async incrementTopicVersion(
+    tx: MessageTransaction,
+    topicId: string,
+  ): Promise<void> {
+    await tx.topic.update({
+      where: { id: topicId },
+      data: { version: { increment: 1 } },
     });
   }
 

@@ -184,6 +184,7 @@ describe('TurnEngineService', () => {
       data: {
         currentRound: 0,
         currentTurnIndex: 3,
+        version: { increment: 1 },
       },
     });
   });

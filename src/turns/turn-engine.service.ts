@@ -65,6 +65,10 @@ export class TurnEngineService {
     });
 
     if (result.plannedTurns.length === 0) {
+      await tx.topic.update({
+        where: { id: currentTurn.topicId },
+        data: { version: { increment: 1 } },
+      });
       return [];
     }
 
@@ -82,7 +86,13 @@ export class TurnEngineService {
         data: {
           currentRound: lastTurn.roundIndex,
           currentTurnIndex: lastTurn.turnIndex,
+          version: { increment: 1 },
         },
+      });
+    } else {
+      await tx.topic.update({
+        where: { id: currentTurn.topicId },
+        data: { version: { increment: 1 } },
       });
     }
 

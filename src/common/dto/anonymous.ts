@@ -37,6 +37,7 @@ export interface TopicAnonymousDto extends AnonymousDto {
   maxTurns: number | null;
   currentRound: number;
   currentTurnIndex: number;
+  version: number;
   reporterParticipantId: string | null;
   createdAt: Date;
   updatedAt: Date;

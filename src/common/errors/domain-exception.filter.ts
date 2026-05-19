@@ -51,6 +51,7 @@ export class DomainExceptionFilter implements ExceptionFilter {
       error: exception.name,
       message:
         request.audience === 'anonymous' &&
+        !(exception instanceof WrongTurnError) &&
         !(exception instanceof DocumentTooLargeError) &&
         !(exception instanceof MissingApiKeyError)
           ? 'Request conflicts with the current project state.'

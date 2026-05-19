@@ -111,6 +111,7 @@ model Topic {
   maxTurns              Int?         @map("max_turns")
   currentRound          Int          @default(0) @map("current_round")
   currentTurnIndex      Int          @default(0) @map("current_turn_index")
+  version               Int          @default(0)
   reporterParticipantId String?      @map("reporter_participant_id") @db.Uuid
   createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)

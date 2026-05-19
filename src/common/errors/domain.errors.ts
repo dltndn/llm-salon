@@ -22,7 +22,7 @@ export class RegistrationClosedError extends Error {
 }
 
 export class WrongTurnError extends Error {
-  constructor(currentMember: string | null) {
+  constructor(readonly currentMember: string | null) {
     super(
       currentMember
         ? `Wrong turn. Current participant: ${currentMember}`

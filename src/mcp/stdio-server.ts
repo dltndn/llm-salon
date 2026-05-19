@@ -6,6 +6,9 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { McpHttpBridge, readPackageVersion } from './http-bridge';
+import { McpToolError } from './errors';
+import { isMcpToolName, MCP_TOOLS } from './tools';
+import { assertAnonymousPayload } from '../common/interceptors/anonymous-guard.interceptor';
 
 type RequestId = string | number;
 
@@ -16,46 +19,7 @@ type JsonRpcRequest = {
   params?: Record<string, unknown>;
 };
 
-type ToolCallParams = {
-  name?: unknown;
-  arguments?: unknown;
-};
-
-const SERVER_STATUS_OUTPUT_SCHEMA = {
-  type: 'object',
-  properties: {
-    version: { type: 'string' },
-    projects: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          slug: { type: 'string' },
-          name: { type: 'string' },
-          phase: { type: ['string', 'null'] },
-          status: { type: 'string' },
-        },
-        required: ['slug', 'name', 'phase', 'status'],
-        additionalProperties: false,
-      },
-    },
-    host: { const: '127.0.0.1' },
-    port: { type: 'number' },
-  },
-  required: ['version', 'projects', 'host', 'port'],
-  additionalProperties: false,
-};
-
-const GET_SERVER_STATUS_TOOL = {
-  name: 'get_server_status',
-  description: 'Return the running LLM-Salon server status.',
-  inputSchema: {
-    type: 'object',
-    properties: {},
-    additionalProperties: false,
-  },
-  outputSchema: SERVER_STATUS_OUTPUT_SCHEMA,
-};
+type ToolCallParams = { name?: unknown; arguments?: unknown };
 
 export async function startMcpStdioServer(
   bridge = new McpHttpBridge(),
@@ -105,7 +69,7 @@ async function handleMessage(
 
     if (message.method === 'tools/list') {
       await sendResult(transport, message.id, {
-        tools: [GET_SERVER_STATUS_TOOL],
+        tools: MCP_TOOLS,
       });
       return;
     }
@@ -138,7 +102,7 @@ async function handleToolCall(
 ): Promise<void> {
   const params = message.params as ToolCallParams | undefined;
 
-  if (params?.name !== 'get_server_status') {
+  if (!isMcpToolName(params?.name)) {
     await sendError(
       transport,
       message.id,
@@ -149,27 +113,45 @@ async function handleToolCall(
   }
 
   try {
-    const status = await bridge.getServerStatus();
+    const result = await bridge.callTool(
+      params.name,
+      isRecord(params.arguments) ? params.arguments : {},
+    );
+    assertAnonymousPayload(result);
     await sendResult(transport, message.id, {
-      structuredContent: status,
+      structuredContent: result,
       content: [
         {
           type: 'text',
-          text: JSON.stringify(status),
+          text: JSON.stringify(result),
         },
       ],
     });
   } catch (error) {
+    const structuredContent =
+      error instanceof McpToolError
+        ? error.structuredContent
+        : {
+            error: 'TOOL_ERROR',
+            message: error instanceof Error ? error.message : String(error),
+          };
+
+    assertAnonymousPayload(structuredContent);
     await sendResult(transport, message.id, {
       isError: true,
+      structuredContent,
       content: [
         {
           type: 'text',
-          text: error instanceof Error ? error.message : String(error),
+          text: JSON.stringify(structuredContent),
         },
       ],
     });
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function negotiateProtocolVersion(params: Record<string, unknown> | undefined) {
