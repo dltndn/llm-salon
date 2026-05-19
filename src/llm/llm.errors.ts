@@ -11,3 +11,10 @@ export class ProviderCallFailedError extends Error {
     this.name = 'ProviderCallFailedError';
   }
 }
+
+export class UnknownLlmProviderError extends Error {
+  constructor(providerName: string) {
+    super(`Unknown LLM provider: ${providerName}`);
+    this.name = 'UnknownLlmProviderError';
+  }
+}

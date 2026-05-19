@@ -81,6 +81,62 @@ describe('context policy', () => {
     },
   );
 
+  it.each([
+    ['claude-sonnet-4-5', 'anthropic', 200_000, 64_000],
+    ['claude-haiku-4-5', 'anthropic', 200_000, 64_000],
+    ['gemini-3-pro-preview', 'google', 1_048_576, 65_536],
+    ['gemini-2.5-pro', 'google', 1_048_576, 65_536],
+    ['gemini-2.0-flash', 'google', 1_048_576, 8_192],
+  ] as const)(
+    'exposes %s provider model metadata',
+    (
+      modelName,
+      providerName,
+      contextWindowTokens,
+      recommendedMaxOutputTokens,
+    ) => {
+      expect(getModelMetadata(modelName)).toEqual({
+        providerName,
+        modelName,
+        contextWindowTokens,
+        recommendedMaxOutputTokens,
+      });
+    },
+  );
+
+  it.each([
+    ['claude-sonnet-4-5', 'low', 50_000, 50_000],
+    ['claude-sonnet-4-5', 'medium', 100_000, 64_000],
+    ['claude-sonnet-4-5', 'high', 160_000, 64_000],
+    ['claude-haiku-4-5', 'low', 50_000, 50_000],
+    ['claude-haiku-4-5', 'medium', 100_000, 64_000],
+    ['claude-haiku-4-5', 'high', 160_000, 64_000],
+    ['gemini-3-pro-preview', 'low', 262_144, 65_536],
+    ['gemini-3-pro-preview', 'medium', 524_288, 65_536],
+    ['gemini-3-pro-preview', 'high', 838_860, 65_536],
+    ['gemini-2.5-pro', 'low', 262_144, 65_536],
+    ['gemini-2.5-pro', 'medium', 524_288, 65_536],
+    ['gemini-2.5-pro', 'high', 838_860, 65_536],
+    ['gemini-2.0-flash', 'low', 262_144, 8_192],
+    ['gemini-2.0-flash', 'medium', 524_288, 8_192],
+    ['gemini-2.0-flash', 'high', 838_860, 8_192],
+  ] as const)(
+    'calculates %s %s profile token budget',
+    (modelName, profile, expectedCap, expectedOutput) => {
+      const model = getModelMetadata(modelName);
+
+      expect(model).toBeDefined();
+      expect(calculateContextTokenBudget(model!, profile)).toEqual({
+        profile,
+        modelName,
+        contextWindowTokens: model!.contextWindowTokens,
+        maxContextTokens: expectedCap,
+        recommendedMaxOutputTokens: expectedOutput,
+        maxInputTokens: expectedCap,
+      });
+    },
+  );
+
   it('does not subtract recommended output tokens from the input context budget', () => {
     const model = getModelMetadata('gpt-4');
 

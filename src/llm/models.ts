@@ -43,6 +43,48 @@ export const LLM_MODEL_METADATA = {
     contextWindowTokens: 8_192,
     recommendedMaxOutputTokens: 8_192,
   },
+  'claude-sonnet-4-5': {
+    providerName: 'anthropic',
+    modelName: 'claude-sonnet-4-5',
+    contextWindowTokens: 200_000,
+    recommendedMaxOutputTokens: 64_000,
+  },
+  'claude-sonnet-4-5-20250929': {
+    providerName: 'anthropic',
+    modelName: 'claude-sonnet-4-5-20250929',
+    contextWindowTokens: 200_000,
+    recommendedMaxOutputTokens: 64_000,
+  },
+  'claude-haiku-4-5': {
+    providerName: 'anthropic',
+    modelName: 'claude-haiku-4-5',
+    contextWindowTokens: 200_000,
+    recommendedMaxOutputTokens: 64_000,
+  },
+  'claude-haiku-4-5-20251001': {
+    providerName: 'anthropic',
+    modelName: 'claude-haiku-4-5-20251001',
+    contextWindowTokens: 200_000,
+    recommendedMaxOutputTokens: 64_000,
+  },
+  'gemini-3-pro-preview': {
+    providerName: 'google',
+    modelName: 'gemini-3-pro-preview',
+    contextWindowTokens: 1_048_576,
+    recommendedMaxOutputTokens: 65_536,
+  },
+  'gemini-2.5-pro': {
+    providerName: 'google',
+    modelName: 'gemini-2.5-pro',
+    contextWindowTokens: 1_048_576,
+    recommendedMaxOutputTokens: 65_536,
+  },
+  'gemini-2.0-flash': {
+    providerName: 'google',
+    modelName: 'gemini-2.0-flash',
+    contextWindowTokens: 1_048_576,
+    recommendedMaxOutputTokens: 8_192,
+  },
 } as const satisfies Record<string, LlmModelMetadata>;
 
 export type SupportedLlmModelName = keyof typeof LLM_MODEL_METADATA;
