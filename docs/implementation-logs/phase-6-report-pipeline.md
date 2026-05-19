@@ -180,9 +180,9 @@
 - Added `LocalStorageService` with `resolveProjectRelativePath()` and `writeReportMarkdown()` under `src/storage/`.
 - Enforced safe path segments (`..`, separators, null bytes rejected) and `path.resolve` + base-prefix checks (project base for relative paths; `reports/` base for final Markdown writes).
 - `writeReportMarkdown()` validates `topicId` and the generated filename before join; final path must stay under `projects/<slug>/reports/`.
-- Report filenames keep `<topicId>-<timestamp>.md` for collision-safe re-runs.
+- Report filenames: `<topicId>-<timestamp>.md` first; on `EEXIST`, retry with `<topicId>-<timestamp>-1.md`, `-2.md`, … (`writeFile` `flag: 'wx'`).
 - Wired `StorageModule` into `ReportsModule`; `ReportPipelineService` delegates final Markdown I/O to storage.
-- Added unit tests for traversal rejection (project slug, segments, `topicId`), successful writes, and distinct timestamp filenames.
+- Added unit tests for traversal rejection (project slug, segments, `topicId`), successful writes, distinct timestamps, and same-millisecond collision retry.
 - Extended `test/report-pipeline.spec.ts` to read the saved Markdown from `report.filePath` and assert it matches `finalContent`.
 
 **Why it matters for the next worker:**
@@ -209,14 +209,15 @@
 - **[P3] Commit trailers:** Task 6.3 commits recreated without `Co-authored-by` tool attribution.
 
 **Commit:**
-- `338234d` (code); docs log in follow-up commit
+- `338234d` (code), `e11ca65` (docs log)
 
-**Verification completed:**
-- [x] `pnpm test -- src/storage/__tests__/local-storage.spec.ts test/report-pipeline.spec.ts`
+**Verification completed (after final rewrite / collision fix):**
+- [x] `pnpm test -- src/storage/__tests__/local-storage.spec.ts` (16 passed)
 - [x] `pnpm run typecheck`
 - [x] `pnpm run lint`
 
-**Not verified:**
+**Not verified / environment notes:**
+- [ ] `test/report-pipeline.spec.ts` in combined `npm test` target — existing Supertest `serverAddress()` null `port` failure in some environments; storage suite passes; integration disk-content assertion added in Task 6.3 but not re-verified here after collision rewrite
 - [ ] Full repository `jest --runInBand`
 
 **Design decisions:**
@@ -230,5 +231,5 @@
 - `DocumentsService` still writes under `LLM_SALON_HOME/documents/` without traversal guards; consider a follow-up if attachments accept user-supplied names at scale.
 
 **Instructions for the next worker:**
-- After review approval, commit Task 6.3, then run Phase 6 checkpoint (full mock e2e `preparing → finalized`).
-- Phase 7 Task 7.1 depends on 6.3.
+- Run Phase 6 checkpoint (full mock e2e `preparing → finalized`; confirm report file on disk matches DB `file_path` and content).
+- Proceed to Phase 7 Task 7.1 (README / user guide) once checkpoint passes.
