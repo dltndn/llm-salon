@@ -75,3 +75,91 @@
 - Start Task 6.2 using the report id from `beginDrafting()` (or the sole `status=drafting` row) to fill `reports.draft_content` and emit `report.draft_created`.
 - Reuse `reporter-selector.ts`; do not duplicate reporter selection logic.
 - Preserve validate-report-before-topic-update ordering when extending the pipeline.
+
+---
+
+## Entry: 2026-05-19 Task 6.2
+
+**Worker context:**
+- Phase: Phase 6
+- Task: Task 6.2 — Draft / feedback / final report LLM calls
+- Dependencies reviewed:
+  - Task 6.1 (`phase-6-report-pipeline.md` entry above)
+  - Task 4.4 (context builder / anonymization patterns)
+
+**What was done:**
+- Added `src/llm/output-languages.ts` and report system prompt helpers in `src/prompt/report-prompts.ts` (drafting / reviewing / finalizing stages + output-language directive).
+- Implemented `ReportPipelineService` to run reporter LLM calls on `topic.phase_changed` → `drafting` and `finalizing`, persist draft/final content, write a Markdown file under `LLM_SALON_HOME/projects/<slug>/reports/`, and emit `report.draft_created` / `report.created`.
+- Extended `MessagesService` for `reviewing` phase feedback (`MessageKind.feedback`), duplicate-feedback guard, and auto `reviewing → finalizing` when every active participant has submitted once.
+- Added unit snapshot tests for report prompts and an integration test `test/report-pipeline.spec.ts` (mock LLM end-to-end through `finalized`).
+- Updated in-memory Prisma test doubles for report-pipeline queries (`report.findFirst` by id, `message.findMany`, `document.findMany`).
+
+**Review feedback (addressed before commit):**
+
+*Round 1 — initial review*
+- **[P1] Async pipeline unhandled rejections:** `runExclusive()` now wraps both `draft` and `finalize` stages, catches all errors (document reads, file writes, DB transactions—not only LLM calls), logs via `logPipelineFailure()`, and leaves the topic phase unchanged on failure.
+- **[P2] Non-hermetic tests:** `test/report-pipeline.spec.ts` sets `LLM_SALON_HOME` to a `mkdtemp` directory per test and removes it in `afterEach`; assertions check `filePath` under that temp home. Stray `projects/` artifacts from earlier runs were deleted from the worktree.
+- **[P2] Unsafe `findFirst()` on finalizing:** `maybeAdvanceToFinalizing()` uses `report.findMany({ take: 2 })`, no-ops when row count ≠ 1, and requires `status=reviewing`, `draftContent != null`, `finalContent == null` before `reviewing → finalizing` (via `resolveReportForFinalizing()`).
+- **Regression tests added:** document read failure, final file write failure, duplicate report rows, non-reviewing report status during feedback completion.
+
+*Round 2 — lint follow-up*
+- **[P2] Unused import:** removed unused `ParticipantStatus` from `src/reports/report-pipeline.service.ts` so `npm run lint` passes.
+
+**Why it matters for the next worker:**
+- Task 6.3 should replace the inline file write in `ReportPipelineService` with `storage/local-storage.service.ts` and add traversal guards per `08-security.md`.
+- Report file paths already use `projects/<slug>/reports/<topicId>-<timestamp>.md`; 6.3 can keep that layout and harden resolution.
+- Draft/final LLM work is async off domain events; do not add a second drafting entry path.
+
+**Dependency impact:**
+- Satisfies Task 6.2 acceptance criteria from the plan (phase transitions, output-language mapping, mock e2e to `finalized`).
+- Downstream Task 6.3 depends on finalized reports having `reports.file_path` populated.
+
+**Files touched:**
+- `src/llm/output-languages.ts`
+- `src/prompt/report-prompts.ts`
+- `src/reports/report-pipeline.service.ts`
+- `src/reports/reports.module.ts`
+- `src/messages/messages.service.ts`
+- `src/llm/__tests__/output-languages.spec.ts`
+- `src/prompt/__tests__/report-prompts.spec.ts`
+- `src/prompt/__tests__/__snapshots__/report-prompts.spec.ts.snap`
+- `test/report-pipeline.spec.ts`
+- `test/reports-drafting.spec.ts`
+- `test/messages.spec.ts`
+
+**Commit:**
+- `ea93684`
+
+**Verification completed:**
+- [x] `npm test -- test/report-pipeline.spec.ts test/reports-drafting.spec.ts test/messages.spec.ts src/prompt/__tests__/report-prompts.spec.ts src/llm/__tests__/output-languages.spec.ts` (21 passed, 1 skipped after review fixes)
+- [x] `npm run typecheck`
+- [x] `npm run lint` (after removing unused `ParticipantStatus` import)
+
+**Not verified:**
+- [ ] Full repository `jest --runInBand`
+- [ ] Real DB integration for report pipeline
+- [ ] `LLM_SALON_E2E=1` reporter calls
+
+**Design decisions:**
+- Three reporter LLM stages: draft on `drafting`, feedback summary on `finalizing` (reviewing prompt), then final report (finalizing prompt).
+- Feedback collection uses HTTP/MCP `submit_message` during `reviewing` without turn locks; one feedback per active participant.
+- Invalid `LLM_SALON_OUTPUT_LANGUAGE` continues to fall back via existing `validateEnv` at boot (no duplicate warning path in pipeline).
+- Final Markdown is written directly in the pipeline until Task 6.3 introduces `storage/`.
+
+**Deviations from spec:**
+- None identified.
+
+**Trade-offs:**
+- File writes omit `path.resolve` traversal checks until Task 6.3.
+- LLM and I/O failures log a warning and leave the topic in the current phase (no automatic retry); `runExclusive()` prevents unhandled promise rejections from crashing the process.
+
+**Open questions:**
+- [x] Which domain event marks drafting queue vs draft saved? → unchanged from 6.1; `report.draft_created` now emitted when draft content is saved.
+
+**Open risks or follow-ups:**
+- Task 6.3 should centralize report file I/O and collision-safe naming policy.
+- Provider auto-speak during `reviewing` is not applicable (no in-progress turns); apps must submit feedback explicitly.
+
+**Instructions for the next worker:**
+- Start Task 6.3 by extracting `writeFinalReportFile()` from `ReportPipelineService` into `storage/local-storage.service.ts` with base-path checks.
+- Keep report pipeline event-driven; avoid synchronous LLM calls inside message transactions.
