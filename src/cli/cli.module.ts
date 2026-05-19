@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { EnvCommand, EnvInitCommand } from './env-init.command';
 import { JoinCommand } from './join.command';
+import { McpCommand, McpInstallPromptCommand } from './mcp.command';
 import { ProviderAddCommand, ProviderCommand } from './provider-add.command';
 import { ProjectCommand, ProjectListCommand } from './project-list.command';
 import { StartCommand } from './start.command';
@@ -12,6 +13,8 @@ import { TopicCommand, TopicCreateCommand } from './topic-create.command';
     EnvCommand,
     EnvInitCommand,
     JoinCommand,
+    McpCommand,
+    McpInstallPromptCommand,
     ProviderAddCommand,
     ProviderCommand,
     ProjectCommand,
