@@ -14,3 +14,6 @@ AGENTS.md
 # Dependencies and build output
 node_modules/
 dist/
+
+# Cursor
+.cursor/
