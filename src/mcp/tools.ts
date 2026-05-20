@@ -67,6 +67,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
       projects: {
         type: 'array',
         items: objectSchema({
+          projectId: stringField,
           slug: stringField,
           name: stringField,
           phase: optionalStringField,

@@ -144,7 +144,7 @@ describe('MCP stdio server', () => {
       'utf8',
     );
 
-    await request(app.getHttpServer())
+    const projectResponse = await request(app.getHttpServer())
       .post('/api/projects')
       .send({ name: 'MCP Test Project' })
       .expect(201);
@@ -188,6 +188,7 @@ describe('MCP stdio server', () => {
       port: address.port,
       projects: [
         {
+          projectId: projectResponse.body.id,
           slug: 'mcp-test-project',
           name: 'MCP Test Project',
           phase: 'preparing',

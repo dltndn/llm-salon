@@ -29,6 +29,7 @@ type ProjectDetails = ProjectStatus & {
 export type ServerStatus = {
   version: string;
   projects: Array<{
+    projectId: string;
     slug: string;
     name: string;
     phase: string | null;
@@ -82,6 +83,7 @@ export class McpHttpBridge {
     return {
       version: await readPackageVersion(),
       projects: projectDetails.map((project) => ({
+        projectId: project.id,
         slug: project.slug,
         name: project.name,
         phase: project.topics?.[0]?.phase ?? null,
