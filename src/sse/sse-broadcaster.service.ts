@@ -8,6 +8,7 @@ import { Observable, Subject } from 'rxjs';
 
 import { DOMAIN_EVENT, DomainEvent } from '../events/domain-events';
 import { DomainEventBus } from '../events/event-bus';
+import { maskLogValue } from '../security/masking.interceptor';
 
 const MAX_REPLAY_EVENTS = 100;
 
@@ -136,7 +137,7 @@ export class SseBroadcasterService implements OnModuleInit, OnModuleDestroy {
     const event: QueuedSseEvent = {
       id: this.nextId(projectSlug),
       type,
-      data,
+      data: maskLogValue(data) as QueuedSseEvent['data'],
     };
     const queue = this.getQueue(projectSlug);
 

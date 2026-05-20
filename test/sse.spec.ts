@@ -63,6 +63,21 @@ describe('SSE events', () => {
     });
   });
 
+  it('masks API key patterns before publishing SSE payloads', async () => {
+    emitMessageCreated(events, 'leaked apiKey=secret-value');
+
+    const [event] = await collectSseEvents(app, 1, '0');
+
+    expect(JSON.stringify(event.data)).not.toContain('secret-value');
+    expect(event).toMatchObject({
+      data: {
+        message: {
+          content: 'leaked apiKey=[redacted]',
+        },
+      },
+    });
+  });
+
   it('replays only events after Last-Event-ID', async () => {
     emitMessageCreated(events, 'First message');
     emitTurnChanged(events);

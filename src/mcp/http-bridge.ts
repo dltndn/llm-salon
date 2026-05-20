@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { resolveRunningServerBaseUrl } from '../cli/running-server';
-import { McpToolError } from './errors';
+import { McpToolError, mcpToolErrorFromHttpError } from './errors';
 import { McpToolName } from './tools';
 
 type ProjectStatus = {
@@ -41,29 +41,37 @@ export type ServerStatus = {
 
 export class McpHttpBridge {
   async callTool(name: McpToolName, args: Record<string, unknown>) {
-    switch (name) {
-      case 'create_project':
-        return this.createProject(args);
-      case 'get_server_status':
-        return this.getServerStatus();
-      case 'get_project_status':
-        return this.getProjectStatus(args);
-      case 'join_project':
-        return this.joinProject(args);
-      case 'create_topic':
-        return this.createTopic(args);
-      case 'add_document':
-        return this.addDocument(args);
-      case 'get_context':
-        return this.getContext(args);
-      case 'get_turn':
-        return this.getTurn(args);
-      case 'is_my_turn':
-        return this.isMyTurn(args);
-      case 'submit_message':
-        return this.submitMessage(args);
-      case 'get_report_status':
-        return this.getReportStatus(args);
+    try {
+      switch (name) {
+        case 'create_project':
+          return await this.createProject(args);
+        case 'get_server_status':
+          return await this.getServerStatus();
+        case 'get_project_status':
+          return await this.getProjectStatus(args);
+        case 'join_project':
+          return await this.joinProject(args);
+        case 'create_topic':
+          return await this.createTopic(args);
+        case 'add_document':
+          return await this.addDocument(args);
+        case 'get_context':
+          return await this.getContext(args);
+        case 'get_turn':
+          return await this.getTurn(args);
+        case 'is_my_turn':
+          return await this.isMyTurn(args);
+        case 'submit_message':
+          return await this.submitMessage(args);
+        case 'get_report_status':
+          return await this.getReportStatus(args);
+      }
+    } catch (error) {
+      if (error instanceof McpHttpError) {
+        throw mcpToolErrorFromHttpError(error);
+      }
+
+      throw error;
     }
   }
 
@@ -256,28 +264,16 @@ export class McpHttpBridge {
     const slug = await this.resolveProjectSlug(baseUrl, readString(args, 'projectId'));
     const topicId = readString(args, 'topicId');
 
-    try {
-      return await requestJson(
-        `${baseUrl}/api/projects/${slug}/topics/${topicId}/messages?audience=anonymous`,
-        {
-          method: 'POST',
-          body: {
-            participantId: readString(args, 'participantId'),
-            content: readString(args, 'content'),
-          },
+    return requestJson(
+      `${baseUrl}/api/projects/${slug}/topics/${topicId}/messages?audience=anonymous`,
+      {
+        method: 'POST',
+        body: {
+          participantId: readString(args, 'participantId'),
+          content: readString(args, 'content'),
         },
-      );
-    } catch (error) {
-      if (error instanceof McpHttpError && error.body.error === 'WrongTurnError') {
-        throw new McpToolError({
-          error: 'WRONG_TURN',
-          currentMember: parseCurrentMember(error.body.message),
-          message: error.body.message,
-        });
-      }
-
-      throw error;
-    }
+      },
+    );
   }
 
   private async getReportStatus(args: Record<string, unknown>) {
@@ -382,12 +378,4 @@ function optionalBody(args: Record<string, unknown>, keys: string[]) {
       .filter((key) => args[key] !== undefined)
       .map((key) => [key, args[key]]),
   );
-}
-
-function parseCurrentMember(message: unknown): string | null {
-  if (typeof message !== 'string') {
-    return null;
-  }
-
-  return message.match(/Current participant: (.+)$/u)?.[1] ?? null;
 }

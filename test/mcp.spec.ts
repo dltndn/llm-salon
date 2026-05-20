@@ -401,6 +401,7 @@ describe('MCP stdio server', () => {
       error: 'WRONG_TURN',
       currentMember: 'Member A',
       message: 'Wrong turn. Current participant: Member A',
+      statusCode: 409,
     });
   });
 

@@ -35,6 +35,7 @@ import {
 } from '../prompt/context-builder.service';
 import { SummaryParticipant } from '../prompt/summarizer.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { maskLogMessage } from '../security/masking.interceptor';
 import { TurnEngineService } from '../turns/turn-engine.service';
 
 type ProviderTurn = Turn & {
@@ -87,9 +88,7 @@ export class ProviderParticipantService
         turn = await this.findProviderTurn(turnId);
       } catch (error) {
         this.logger.warn(
-          `Provider auto-speak turn lookup failed: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
+          `Provider auto-speak turn lookup failed: ${this.formatLogError(error)}`,
         );
         return;
       }
@@ -117,9 +116,7 @@ export class ProviderParticipantService
         });
       } catch (error) {
         this.logger.warn(
-          `Provider auto-speak message submit failed: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
+          `Provider auto-speak message submit failed: ${this.formatLogError(error)}`,
         );
       }
     } finally {
@@ -307,9 +304,12 @@ export class ProviderParticipantService
   }
 
   private describeAutoSpeakFailure(error: unknown): string {
-    const message = error instanceof Error ? error.message : String(error);
-    this.logger.warn(`Provider auto-speak failed: ${message}`);
+    this.logger.warn(`Provider auto-speak failed: ${this.formatLogError(error)}`);
     return 'provider_call_failed';
+  }
+
+  private formatLogError(error: unknown): string {
+    return maskLogMessage(error instanceof Error ? error.message : String(error));
   }
 }
 

@@ -34,6 +34,7 @@ import {
 } from '../prompt/report-prompts';
 import { assertNoHumanIdentifierText } from '../prompt/prompt-input';
 import { PrismaService } from '../prisma/prisma.service';
+import { maskLogMessage } from '../security/masking.interceptor';
 import { LocalStorageService } from '../storage/local-storage.service';
 
 type ReportPipelineJob = {
@@ -539,7 +540,9 @@ export class ReportPipelineService implements OnModuleInit, OnModuleDestroy {
     payload: TopicPhaseChangedEvent,
     error: unknown,
   ): void {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = maskLogMessage(
+      error instanceof Error ? error.message : String(error),
+    );
     this.logger.warn(
       `Report pipeline ${stage} failed for topic ${payload.topicId}: ${message}`,
     );
