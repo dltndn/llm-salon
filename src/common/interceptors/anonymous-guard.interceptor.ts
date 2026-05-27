@@ -92,6 +92,7 @@ const ALLOWED_ANONYMOUS_KEYS = new Set([
   'updatedAt',
   'url',
   'version',
+  'wakeupReason',
 ]);
 
 @Injectable()

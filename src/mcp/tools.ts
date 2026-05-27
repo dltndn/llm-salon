@@ -8,6 +8,7 @@ export type McpToolName =
   | 'get_context'
   | 'get_turn'
   | 'is_my_turn'
+  | 'wait_for_turn'
   | 'submit_message'
   | 'get_report_status';
 
@@ -186,6 +187,29 @@ export const MCP_TOOLS: McpToolDefinition[] = [
       isMyTurn: booleanField,
       currentMember: optionalStringField,
       phase: stringField,
+      ...volatileFields,
+    }),
+  },
+  {
+    name: 'wait_for_turn',
+    description: 'Wait until a participant holds the turn or the wait times out.',
+    inputSchema: objectSchema(
+      {
+        projectId: stringField,
+        topicId: stringField,
+        participantId: stringField,
+        afterTopicVersion: numberField,
+        timeoutMs: numberField,
+      },
+      ['projectId', 'topicId', 'participantId'],
+    ),
+    outputSchema: objectSchema({
+      isMyTurn: booleanField,
+      currentMember: optionalStringField,
+      phase: stringField,
+      currentRound: numberField,
+      currentTurnIndex: numberField,
+      wakeupReason: stringField,
       ...volatileFields,
     }),
   },

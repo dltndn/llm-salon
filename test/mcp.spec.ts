@@ -171,6 +171,10 @@ describe('MCP stdio server', () => {
         name: 'get_server_status',
         outputSchema: expect.objectContaining({ type: 'object' }),
       }),
+      expect.objectContaining({
+        name: 'wait_for_turn',
+        outputSchema: expect.objectContaining({ type: 'object' }),
+      }),
       ]),
     );
 
@@ -278,6 +282,16 @@ describe('MCP stdio server', () => {
         participantId: participant.participantId,
       },
     );
+    const waitForTurn = await callTool<{
+      isMyTurn: boolean;
+      currentMember: string;
+      wakeupReason: string;
+    }>(child, 'wait_for_turn', {
+      projectId: project.projectId,
+      topicId: topic.topicId,
+      participantId: participant.participantId,
+      timeoutMs: 1000,
+    });
     const context = await callTool<{
       systemPrompt: string;
       contextMessages: Array<{ role: string; content: string }>;
@@ -328,6 +342,11 @@ describe('MCP stdio server', () => {
     expect(projectStatus.documents).toHaveLength(2);
     expect(turn).toMatchObject({ isMyTurn: true, mySelf: 'Member A' });
     expect(isMyTurn.isMyTurn).toBe(true);
+    expect(waitForTurn).toMatchObject({
+      isMyTurn: true,
+      currentMember: 'Member A',
+      wakeupReason: 'turn_changed',
+    });
     expect(context.systemPrompt).toContain('You are Member A');
     expect(context.contextMessages.some((item) => item.role === 'assistant')).toBe(
       true,

@@ -16,4 +16,25 @@ export class TurnsController {
   ) {
     return this.turnsService.getTurn(slug, topicId, participantId, audience);
   }
+
+  @Get('wait')
+  waitForTurn(
+    @Param('slug') slug: string,
+    @Param('topicId') topicId: string,
+    @Query('participantId') participantId: string,
+    @Query('afterTopicVersion') afterTopicVersion?: string,
+    @Query('timeoutMs') timeoutMs?: string,
+    @RequestAudience() audience?: Audience,
+  ) {
+    return this.turnsService.waitForTurn(
+      slug,
+      topicId,
+      {
+        participantId,
+        afterTopicVersion,
+        timeoutMs,
+      },
+      audience,
+    );
+  }
 }

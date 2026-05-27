@@ -15,6 +15,19 @@ export type TurnStatusResponse = {
   mySelf?: string | null;
 };
 
+export type TurnWaitWakeupReason =
+  | 'turn_changed'
+  | 'phase_changed'
+  | 'topic_updated'
+  | 'timeout'
+  | 'closed';
+
+export type TurnWaitResponse = TurnStatusResponse & {
+  isMyTurn: boolean;
+  mySelf: string | null;
+  wakeupReason: TurnWaitWakeupReason;
+};
+
 export function serializeTurnStatus(input: {
   topic: Topic;
   turn: TurnWithParticipant | null;

@@ -362,6 +362,20 @@ export class InMemoryPrisma {
       this.messages.push(message);
       return Promise.resolve({ ...message });
     }),
+    findFirst: jest.fn(({ where, select }) => {
+      const message =
+        this.messages.find(
+          (message) =>
+            message.topicId === where.topicId &&
+            (!where.participantId ||
+              message.participantId === where.participantId) &&
+            (!where.kind || message.kind === where.kind),
+        ) ?? null;
+
+      return Promise.resolve(
+        message ? (select ? pickSelected(message, select) : { ...message }) : null,
+      );
+    }),
     findMany: jest.fn(({ where }) =>
       Promise.resolve(
         this.messages

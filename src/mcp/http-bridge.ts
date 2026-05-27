@@ -61,6 +61,8 @@ export class McpHttpBridge {
           return await this.getTurn(args);
         case 'is_my_turn':
           return await this.isMyTurn(args);
+        case 'wait_for_turn':
+          return await this.waitForTurn(args);
         case 'submit_message':
           return await this.submitMessage(args);
         case 'get_report_status':
@@ -259,6 +261,30 @@ export class McpHttpBridge {
     };
   }
 
+  private async waitForTurn(args: Record<string, unknown>) {
+    const baseUrl = await resolveRunningServerBaseUrl();
+    const slug = await this.resolveProjectSlug(baseUrl, readString(args, 'projectId'));
+    const topicId = readString(args, 'topicId');
+    const params = new URLSearchParams({
+      participantId: readString(args, 'participantId'),
+      audience: 'anonymous',
+    });
+    const afterTopicVersion = readOptionalNumber(args, 'afterTopicVersion');
+    const timeoutMs = readOptionalNumber(args, 'timeoutMs');
+
+    if (afterTopicVersion !== undefined) {
+      params.set('afterTopicVersion', String(afterTopicVersion));
+    }
+
+    if (timeoutMs !== undefined) {
+      params.set('timeoutMs', String(timeoutMs));
+    }
+
+    return requestJson(
+      `${baseUrl}/api/projects/${slug}/topics/${topicId}/turn/wait?${params.toString()}`,
+    );
+  }
+
   private async submitMessage(args: Record<string, unknown>) {
     const baseUrl = await resolveRunningServerBaseUrl();
     const slug = await this.resolveProjectSlug(baseUrl, readString(args, 'projectId'));
@@ -370,6 +396,28 @@ function readOptionalString(
 ): string | undefined {
   const value = args[key];
   return typeof value === 'string' && value.trim() !== '' ? value : undefined;
+}
+
+function readOptionalNumber(
+  args: Record<string, unknown>,
+  key: string,
+): number | undefined {
+  const value = args[key];
+
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    throw new McpToolError({
+      error: 'INVALID_PARAMS',
+      message: `${key} must be a number.`,
+    });
+  }
+
+  return parsed;
 }
 
 function optionalBody(args: Record<string, unknown>, keys: string[]) {
