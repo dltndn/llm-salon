@@ -214,6 +214,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
       currentRound: numberField,
       currentTurnIndex: numberField,
       wakeupReason: stringField,
+      mySelf: optionalStringField,
       ...volatileFields,
     }),
   },
