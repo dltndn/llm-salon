@@ -1,6 +1,8 @@
 import { INestApplication } from '@nestjs/common';
 import {
+  DebateSignal,
   MessageKind,
+  Participant,
   ParticipantStatus,
   ParticipantType,
   Report,
@@ -61,8 +63,22 @@ class InMemoryMessagesPrisma {
     participantId: string;
     kind: MessageKind;
     content: string;
+    debateSignal: DebateSignal;
+    phase: TopicPhase;
+    turnIndex: number;
   }> = [];
   private reports: Report[] = [];
+  private participants: Participant[] = [
+    this.buildParticipant(participantAId, 1, 'Member A'),
+    this.buildParticipant(participantBId, 2, 'Member B'),
+    this.buildParticipant(
+      providerParticipantId,
+      3,
+      'Member C',
+      ParticipantType.provider,
+      new Date('2026-05-19T01:00:00.000Z'),
+    ),
+  ];
 
   setDebatingLimits(limits: { maxTurns?: number; maxRounds?: number }) {
     this.topicRecord.phase = TopicPhase.debating;
@@ -71,8 +87,33 @@ class InMemoryMessagesPrisma {
     this.turns[0].phase = TopicPhase.debating;
   }
 
+  setTopicMode(mode: TopicMode) {
+    this.topicRecord.mode = mode;
+  }
+
   clearTurns() {
     this.turns = [];
+  }
+
+  setProviderWaiting() {
+    this.participants = this.participants.map((participant) =>
+      participant.id === providerParticipantId
+        ? { ...participant, status: ParticipantStatus.waiting }
+        : participant,
+    );
+  }
+
+  seedStatement(participantId: string, debateSignal: DebateSignal) {
+    this.messages.push({
+      id: `seed-${this.messages.length + 1}`,
+      topicId,
+      participantId,
+      kind: MessageKind.statement,
+      content: 'Seeded readiness signal',
+      debateSignal,
+      phase: TopicPhase.debating,
+      turnIndex: 0,
+    });
   }
 
   readonly document = {
@@ -179,19 +220,25 @@ class InMemoryMessagesPrisma {
   };
 
   readonly participant = {
-    findMany: jest.fn(() =>
-      Promise.resolve([
-        this.buildParticipant(participantAId, 1, 'Member A'),
-        this.buildParticipant(participantBId, 2, 'Member B'),
-        this.buildParticipant(
-          providerParticipantId,
-          3,
-          'Member C',
-          ParticipantType.provider,
-          new Date('2026-05-19T01:00:00.000Z'),
-        ),
-      ]),
-    ),
+    findMany: jest.fn(({ where, orderBy, select } = {}) => {
+      const participants = this.participants
+        .filter(
+          (participant) =>
+            (!where?.projectId || participant.projectId === where.projectId) &&
+            (!where?.status || participant.status === where.status),
+        )
+        .sort((left, right) =>
+          orderBy?.joinOrder === 'asc'
+            ? left.joinOrder - right.joinOrder
+            : left.joinOrder - right.joinOrder,
+        );
+
+      return Promise.resolve(
+        select
+          ? participants.map((participant) => pickSelected(participant, select))
+          : participants,
+      );
+    }),
   };
 
   readonly report = {
@@ -254,6 +301,7 @@ class InMemoryMessagesPrisma {
         ).padStart(12, '0')}`,
         createdAt: now,
         participant: { displayName: 'Member A' },
+        debateSignal: data.debateSignal ?? DebateSignal.Continue,
         ...data,
       };
       this.messages.push(message);
@@ -270,15 +318,28 @@ class InMemoryMessagesPrisma {
         ) ?? null,
       ),
     ),
-    findMany: jest.fn(({ where }) =>
-      Promise.resolve(
-        this.messages.filter(
+    findMany: jest.fn(({ where, orderBy, select }) => {
+      const messages = this.messages
+        .filter(
           (message) =>
             message.topicId === where.topicId &&
-            (!where.kind || message.kind === where.kind),
-        ),
-      ),
-    ),
+            (!where.kind || message.kind === where.kind) &&
+            (!where.phase || message.phase === where.phase) &&
+            (!where.participantId?.in ||
+              where.participantId.in.includes(message.participantId)),
+        )
+        .sort((left, right) =>
+          orderBy?.turnIndex === 'asc'
+            ? left.turnIndex - right.turnIndex
+            : 0,
+        );
+
+      return Promise.resolve(
+        select
+          ? messages.map((message) => pickSelected(message, select))
+          : messages,
+      );
+    }),
   };
 
   $transaction = jest.fn((callback) => callback(this));
@@ -321,6 +382,15 @@ class InMemoryMessagesPrisma {
 
     return null;
   }
+}
+
+function pickSelected<T extends Record<string, unknown>>(
+  value: T,
+  select: Record<string, boolean>,
+) {
+  return Object.fromEntries(
+    Object.keys(select).map((key) => [key, value[key]]),
+  );
 }
 
 describe('Message REST API', () => {
@@ -438,6 +508,102 @@ describe('Message REST API', () => {
     expect(secondResponse.body).toMatchObject({
       nextMember: null,
       phaseAfter: TopicPhase.drafting,
+    });
+  });
+
+  it('moves consensus topics to drafting when all active participants are ready', async () => {
+    prisma.setDebatingLimits({});
+    prisma.seedStatement(providerParticipantId, DebateSignal.ReadyToFinalize);
+
+    const firstResponse = await request(app.getHttpServer())
+      .post(`/api/projects/message-project/topics/${topicId}/messages`)
+      .send({
+        participantId: participantAId,
+        content: 'I am ready to finalize.',
+        debateSignal: 'ready_to_finalize',
+      })
+      .expect(201);
+
+    expect(firstResponse.body).toMatchObject({
+      nextMember: 'Member B',
+      phaseAfter: TopicPhase.debating,
+    });
+
+    const secondResponse = await request(app.getHttpServer())
+      .post(`/api/projects/message-project/topics/${topicId}/messages`)
+      .send({
+        participantId: participantBId,
+        content: 'No unresolved objections remain.',
+        debateSignal: 'ready_to_finalize',
+      })
+      .expect(201);
+
+    expect(secondResponse.body).toMatchObject({
+      nextMember: null,
+      phaseAfter: TopicPhase.drafting,
+    });
+    expect(events.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: DOMAIN_EVENT.topicPhaseChanged,
+        payload: expect.objectContaining({ phase: TopicPhase.drafting }),
+      }),
+    );
+  });
+
+  it('keeps consensus topics debating when a latest signal is continue', async () => {
+    prisma.setDebatingLimits({});
+    prisma.setProviderWaiting();
+
+    await request(app.getHttpServer())
+      .post(`/api/projects/message-project/topics/${topicId}/messages`)
+      .send({
+        participantId: participantAId,
+        content: 'I am ready.',
+        debateSignal: 'ready_to_finalize',
+      })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/projects/message-project/topics/${topicId}/messages`)
+      .send({
+        participantId: participantBId,
+        content: 'I still have an objection.',
+        debateSignal: 'continue',
+      })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      nextMember: 'Member A',
+      phaseAfter: TopicPhase.debating,
+    });
+  });
+
+  it('does not apply readiness early stop to options topics', async () => {
+    prisma.setDebatingLimits({});
+    prisma.setProviderWaiting();
+    prisma.setTopicMode(TopicMode.options);
+
+    await request(app.getHttpServer())
+      .post(`/api/projects/message-project/topics/${topicId}/messages`)
+      .send({
+        participantId: participantAId,
+        content: 'Ready with one option.',
+        debateSignal: 'ready_to_finalize',
+      })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/projects/message-project/topics/${topicId}/messages`)
+      .send({
+        participantId: participantBId,
+        content: 'Ready with another option.',
+        debateSignal: 'ready_to_finalize',
+      })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      nextMember: 'Member A',
+      phaseAfter: TopicPhase.debating,
     });
   });
 

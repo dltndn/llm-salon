@@ -1,4 +1,5 @@
 import {
+  DebateSignal,
   Document,
   Message,
   Participant,
@@ -53,6 +54,7 @@ export class InMemoryPrisma {
   private nextDocumentId = 1;
   private nextTurnId = 1;
   private nextMessageId = 1;
+  private nextReportId = 1;
 
   seedParticipant(
     projectSlug: string,
@@ -68,6 +70,38 @@ export class InMemoryPrisma {
       ...participant,
       projectId: project.id,
     });
+  }
+
+  seedMessage(input: {
+    topicId: string;
+    participantId: string;
+    kind: Message['kind'];
+    phase: Message['phase'];
+    content: string;
+    debateSignal?: DebateSignal;
+    turnIndex?: number;
+    roundIndex?: number;
+  }) {
+    const topic = this.topics.find((item) => item.id === input.topicId);
+
+    if (!topic) {
+      throw new Error(`Topic not found in test store: ${input.topicId}`);
+    }
+
+    this.messages.push({
+      id: uuid('60000000', this.nextMessageId),
+      projectId: topic.projectId,
+      topicId: input.topicId,
+      participantId: input.participantId,
+      kind: input.kind,
+      turnIndex: input.turnIndex ?? 0,
+      roundIndex: input.roundIndex ?? 0,
+      phase: input.phase,
+      content: input.content,
+      debateSignal: input.debateSignal ?? DebateSignal.Continue,
+      createdAt: new Date(),
+    });
+    this.nextMessageId += 1;
   }
 
   readonly project = {
@@ -349,6 +383,7 @@ export class InMemoryPrisma {
         roundIndex: data.roundIndex,
         phase: data.phase,
         content: data.content,
+        debateSignal: data.debateSignal ?? DebateSignal.Continue,
         createdAt: new Date(),
         participant: participant
           ? {
@@ -376,13 +411,28 @@ export class InMemoryPrisma {
         message ? (select ? pickSelected(message, select) : { ...message }) : null,
       );
     }),
-    findMany: jest.fn(({ where }) =>
-      Promise.resolve(
-        this.messages
-          .filter((message) => message.topicId === where.topicId)
-          .map((message) => ({ ...message })),
-      ),
-    ),
+    findMany: jest.fn(({ where, orderBy, select }) => {
+      const messages = this.messages
+        .filter(
+          (message) =>
+            message.topicId === where.topicId &&
+            (!where.kind || message.kind === where.kind) &&
+            (!where.phase || message.phase === where.phase) &&
+            (!where.participantId?.in ||
+              where.participantId.in.includes(message.participantId)),
+        )
+        .sort((left, right) =>
+          orderBy?.turnIndex === 'asc'
+            ? left.turnIndex - right.turnIndex
+            : 0,
+        );
+
+      return Promise.resolve(
+        messages.map((message) =>
+          select ? pickSelected(message, select) : { ...message },
+        ),
+      );
+    }),
   };
 
   readonly report = {
@@ -394,6 +444,44 @@ export class InMemoryPrisma {
         ) ?? null,
       ),
     ),
+    findMany: jest.fn(({ where, take }) => {
+      const matches = this.reports.filter(
+        (report) =>
+          report.projectId === where.projectId && report.topicId === where.topicId,
+      );
+
+      return Promise.resolve(
+        typeof take === 'number' ? matches.slice(0, take) : matches,
+      );
+    }),
+    create: jest.fn(({ data }) => {
+      const report: Report = {
+        id: uuid('70000000', this.nextReportId),
+        projectId: data.projectId,
+        topicId: data.topicId,
+        reporterParticipantId: data.reporterParticipantId,
+        status: data.status,
+        draftContent: data.draftContent ?? null,
+        finalContent: data.finalContent ?? null,
+        filePath: data.filePath ?? null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      this.nextReportId += 1;
+      this.reports.push(report);
+      return Promise.resolve({ ...report });
+    }),
+    update: jest.fn(({ where, data }) => {
+      const index = this.reports.findIndex((report) => report.id === where.id);
+      this.reports[index] = {
+        ...this.reports[index],
+        ...data,
+        updatedAt: new Date(),
+      };
+
+      return Promise.resolve({ ...this.reports[index] });
+    }),
   };
 
   $transaction = jest.fn((callback) => callback(this));

@@ -35,6 +35,7 @@ const ALLOWED_ANONYMOUS_KEYS = new Set([
   'currentMember',
   'currentRound',
   'currentTurnIndex',
+  'debateSignal',
   'description',
   'documentId',
   'documents',

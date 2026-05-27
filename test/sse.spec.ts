@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import {
+  DebateSignal,
   MessageKind,
   ParticipantStatus,
   ParticipantType,
@@ -455,6 +456,7 @@ function emitMessageCreated(events: DomainEventBus, content: string): void {
         roundIndex: 0,
         phase: TopicPhase.debating,
         content,
+        debateSignal: DebateSignal.Continue,
         createdAt: new Date('2026-05-18T00:00:00.000Z'),
         participant: { displayName: 'Display A' },
       },

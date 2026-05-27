@@ -89,7 +89,7 @@ export class ContextBuilderService {
       role: 'user' as const,
       content: `${message.participant?.anonymousName ?? 'Unknown member'}: ${
         message.content
-      }`,
+      }\n[debate_signal: ${message.debateSignal}]`,
     }));
 
     const policy = getContextProfilePolicy(input.profile);
@@ -188,6 +188,7 @@ function buildTurnInstruction(caller: { anonymousName: string }): string {
   return [
     '[turn instruction]',
     `Caller: ${caller.anonymousName}`,
-    'Respond with the next debate message as plain text.',
+    'Respond with a JSON object containing string fields "content" and "debateSignal".',
+    'Use debateSignal "ready_to_finalize" only when the discussion has enough material for the report and you have no unresolved objection that requires another debate turn. Otherwise use "continue".',
   ].join('\n');
 }

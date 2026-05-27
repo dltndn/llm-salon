@@ -8,6 +8,7 @@ import {
   TopicPhase,
   TurnStatus,
 } from '@prisma/client';
+import { DebateSignalValue } from '../debate-signal';
 
 declare const humanDtoBrand: unique symbol;
 
@@ -78,6 +79,7 @@ export interface MessageHumanDto extends HumanDto {
   kind: MessageKind;
   phase: TopicPhase;
   content: string;
+  debateSignal: DebateSignalValue;
   turnIndex: number;
   roundIndex: number;
   createdAt: Date;

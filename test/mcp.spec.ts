@@ -8,6 +8,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { INestApplication } from '@nestjs/common';
+import {
+  DebateSignal,
+  MessageKind,
+  ParticipantStatus,
+  ParticipantType,
+  TopicPhase,
+} from '@prisma/client';
 import * as request from 'supertest';
 
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -369,6 +376,105 @@ describe('MCP stdio server', () => {
       submitted,
       report,
     })).not.toMatch(/displayName|providerName|clientName|modelName/u);
+  });
+
+  it('submits debateSignal through MCP and can trigger consensus early stop', async () => {
+    const prisma = new InMemoryPrisma();
+    app = await createTestApp(prisma as unknown as PrismaService);
+    await app.listen(0, '127.0.0.1');
+
+    const address = app.getHttpServer().address() as { port: number };
+    await writeFile(
+      join(tempHome, 'server.lock'),
+      `${JSON.stringify({ pid: process.pid, port: address.port })}\n`,
+      'utf8',
+    );
+
+    child = spawnMcp(tempHome);
+    await initializeChild(child);
+
+    const project = await callTool<{ projectId: string; slug: string }>(
+      child,
+      'create_project',
+      { name: 'Consensus MCP' },
+    );
+    const participantA = await callTool<{ participantId: string }>(
+      child,
+      'join_project',
+      {
+        projectId: project.projectId,
+        clientName: 'Codex A',
+        modelName: 'GPT-5',
+      },
+    );
+    const participantB = await callTool<{ participantId: string }>(
+      child,
+      'join_project',
+      {
+        projectId: project.projectId,
+        clientName: 'Codex B',
+        modelName: 'GPT-5',
+      },
+    );
+    const topic = await callTool<{ topicId: string }>(child, 'create_topic', {
+      projectId: project.slug,
+      title: 'Reach consensus',
+      mode: 'consensus',
+    });
+    const providerId = 'provider-ready';
+    prisma.seedParticipant(project.slug, {
+      id: providerId,
+      displayName: 'Provider',
+      anonymousName: 'Member C',
+      participantType: ParticipantType.provider,
+      providerName: 'openai',
+      modelName: 'Provider Model',
+      clientName: null,
+      status: ParticipantStatus.active,
+      joinOrder: 3,
+      joinedAt: new Date('2026-05-18T00:00:00.000Z'),
+      createdAt: new Date('2026-05-18T00:00:00.000Z'),
+      updatedAt: new Date('2026-05-18T00:00:00.000Z'),
+    });
+    prisma.seedMessage({
+      topicId: topic.topicId,
+      participantId: providerId,
+      kind: MessageKind.statement,
+      phase: TopicPhase.debating,
+      content: 'Provider is ready.',
+      debateSignal: DebateSignal.ReadyToFinalize,
+    });
+
+    const firstSubmit = await callTool<{ phaseAfter: string; nextMember: string }>(
+      child,
+      'submit_message',
+      {
+        projectId: project.projectId,
+        topicId: topic.topicId,
+        participantId: participantA.participantId,
+        content: 'A is ready.',
+        debateSignal: 'ready_to_finalize',
+      },
+    );
+    const secondSubmit = await callTool<{
+      phaseAfter: string;
+      nextMember: string | null;
+    }>(child, 'submit_message', {
+      projectId: project.projectId,
+      topicId: topic.topicId,
+      participantId: participantB.participantId,
+      content: 'B is ready.',
+      debateSignal: 'ready_to_finalize',
+    });
+
+    expect(firstSubmit).toMatchObject({
+      nextMember: 'Member B',
+      phaseAfter: 'debating',
+    });
+    expect(secondSubmit).toMatchObject({
+      nextMember: null,
+      phaseAfter: 'drafting',
+    });
   });
 
   it('returns WRONG_TURN with the current anonymous member', async () => {

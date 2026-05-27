@@ -1,5 +1,16 @@
 import { Transform } from 'class-transformer';
-import { IsNotEmpty, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
+import {
+  DEBATE_SIGNAL_VALUES,
+  DebateSignalValue,
+} from '../../common/debate-signal';
 
 export class SubmitMessageDto {
   @IsUUID()
@@ -10,4 +21,8 @@ export class SubmitMessageDto {
   @IsNotEmpty()
   @MaxLength(32768)
   content!: string;
+
+  @IsOptional()
+  @IsIn(DEBATE_SIGNAL_VALUES)
+  debateSignal?: DebateSignalValue;
 }

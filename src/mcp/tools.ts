@@ -25,6 +25,10 @@ const stringField = { type: 'string' };
 const optionalStringField = { type: ['string', 'null'] };
 const numberField = { type: 'number' };
 const booleanField = { type: 'boolean' };
+const debateSignalField = {
+  type: 'string',
+  enum: ['continue', 'ready_to_finalize'],
+};
 
 function objectSchema(
   properties: Record<string, JsonSchema>,
@@ -216,12 +220,16 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   {
     name: 'submit_message',
     description: 'Submit a debate message for the current turn holder.',
-    inputSchema: objectSchema({
-      projectId: stringField,
-      topicId: stringField,
-      participantId: stringField,
-      content: stringField,
-    }),
+    inputSchema: objectSchema(
+      {
+        projectId: stringField,
+        topicId: stringField,
+        participantId: stringField,
+        content: stringField,
+        debateSignal: debateSignalField,
+      },
+      ['projectId', 'topicId', 'participantId', 'content'],
+    ),
     outputSchema: objectSchema({
       messageId: stringField,
       nextMember: optionalStringField,

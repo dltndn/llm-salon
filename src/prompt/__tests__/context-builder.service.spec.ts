@@ -40,6 +40,13 @@ describe('ContextBuilderService', () => {
     expect(context.systemPrompt).toContain(
       'Speak only when it is your turn. Otherwise return an empty response.',
     );
+    expect(
+      context.contextMessages.some((message) =>
+        message.content.includes(
+          'Respond with a JSON object containing string fields "content" and "debateSignal".',
+        ),
+      ),
+    ).toBe(true);
   });
 
   it('throws when builder output contains a human identifier', async () => {
@@ -262,6 +269,7 @@ function createMessages(
     kind: MessageKind.statement,
     phase: TopicPhase.debating,
     content: `${contentPrefix} ${index + 1}`,
+    debateSignal: 'continue',
     turnIndex: index,
     roundIndex: Math.floor(index / 2),
     createdAt: new Date('2026-01-01T00:00:00Z'),

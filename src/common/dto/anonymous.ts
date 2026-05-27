@@ -8,6 +8,7 @@ import {
   TopicPhase,
   TurnStatus,
 } from '@prisma/client';
+import { DebateSignalValue } from '../debate-signal';
 
 declare const anonymousDtoBrand: unique symbol;
 
@@ -71,6 +72,7 @@ export interface MessageAnonymousDto extends AnonymousDto {
   kind: MessageKind;
   phase: TopicPhase;
   content: string;
+  debateSignal: DebateSignalValue;
   turnIndex: number;
   roundIndex: number;
   createdAt: Date;

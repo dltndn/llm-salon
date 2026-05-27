@@ -5,6 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import {
+  DebateSignal,
   MessageKind,
   Participant,
   ParticipantType,
@@ -20,6 +21,11 @@ import type {
   ProjectAnonymousDto,
   TopicAnonymousDto,
 } from '../common/dto';
+import {
+  DebateSignalValue,
+  fromPrismaDebateSignal,
+  isDebateSignalValue,
+} from '../common/debate-signal';
 import {
   DOMAIN_EVENT,
   DomainEvent,
@@ -43,6 +49,10 @@ type ProviderTurn = Turn & {
 };
 
 type AutoSpeakTransaction = Prisma.TransactionClient;
+type ProviderGeneratedMessage = {
+  content: string;
+  debateSignal: DebateSignalValue;
+};
 
 @Injectable()
 export class ProviderParticipantService
@@ -97,9 +107,9 @@ export class ProviderParticipantService
         return;
       }
 
-      let content: string;
+      let message: ProviderGeneratedMessage;
       try {
-        content = await this.generateProviderMessage(
+        message = await this.generateProviderMessage(
           payload.projectSlug,
           payload.topicId,
           turn,
@@ -112,7 +122,8 @@ export class ProviderParticipantService
       try {
         await this.messages.submitMessage(payload.projectSlug, payload.topicId, {
           participantId: turn.currentParticipant.id,
-          content,
+          content: message.content,
+          debateSignal: message.debateSignal,
         });
       } catch (error) {
         this.logger.warn(
@@ -149,23 +160,23 @@ export class ProviderParticipantService
     projectSlug: string,
     topicId: string,
     turn: ProviderTurn,
-  ): Promise<string> {
+  ): Promise<ProviderGeneratedMessage> {
     const context = await this.buildContext(projectSlug, topicId, turn);
     const adapter = this.registry.get(turn.currentParticipant.providerName!);
     const result = await adapter.generate({
       ...context,
       modelName: turn.currentParticipant.modelName!,
     });
-    const content = result.content.trim();
+    const message = this.parseProviderGeneratedMessage(result.content);
 
-    if (!content) {
+    if (!message.content) {
       throw new ProviderCallFailedError(
         turn.currentParticipant.providerName!,
         'empty response',
       );
     }
 
-    return content;
+    return message;
   }
 
   private async buildContext(
@@ -217,9 +228,69 @@ export class ProviderParticipantService
       caller: turn.currentParticipant,
     });
 
-    return this.contextBuilder.build(contextInput, {
+    const context = await this.contextBuilder.build(contextInput, {
       summaryParticipants: toSummaryParticipants(participants),
     });
+
+    return {
+      ...context,
+      contextMessages: [
+        ...context.contextMessages,
+        {
+          role: 'user' as const,
+          content: [
+            '[provider submit format]',
+            'Return a JSON object with string fields "content" and "debateSignal".',
+            'Use debateSignal "ready_to_finalize" only when the discussion has enough material for the report and you have no unresolved objection that requires another debate turn. Otherwise use "continue".',
+          ].join('\n'),
+        },
+      ],
+    };
+  }
+
+  private parseProviderGeneratedMessage(rawContent: string): ProviderGeneratedMessage {
+    const trimmed = rawContent.trim();
+    const jsonCandidate = this.extractJsonObject(trimmed);
+
+    try {
+      const parsed = JSON.parse(jsonCandidate) as {
+        content?: unknown;
+        debateSignal?: unknown;
+      };
+
+      if (typeof parsed.content === 'string') {
+        return {
+          content: parsed.content.trim(),
+          debateSignal: isDebateSignalValue(parsed.debateSignal)
+            ? parsed.debateSignal
+            : 'continue',
+        };
+      }
+    } catch {
+      // Existing providers return plain text; keep that path compatible.
+    }
+
+    return {
+      content: trimmed,
+      debateSignal: 'continue',
+    };
+  }
+
+  private extractJsonObject(content: string): string {
+    const fencedJson = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/iu);
+
+    if (fencedJson?.[1]) {
+      return fencedJson[1].trim();
+    }
+
+    const firstBrace = content.indexOf('{');
+    const lastBrace = content.lastIndexOf('}');
+
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      return content.slice(firstBrace, lastBrace + 1);
+    }
+
+    return content;
   }
 
   private async skipProviderTurn(
@@ -334,6 +405,7 @@ function toContextBuilderInput(input: {
     kind: MessageKind;
     phase: Topic['phase'];
     content: string;
+    debateSignal: DebateSignal;
     turnIndex: number;
     roundIndex: number;
     createdAt: Date;
@@ -362,7 +434,18 @@ function toContextBuilderInput(input: {
       createdAt: document.createdAt,
       content: '',
     })) as ContextBuilderInput['documents'],
-    previousMessages: input.previousMessages as MessageAnonymousDto[],
+    previousMessages: input.previousMessages.map((message) => ({
+      id: message.id,
+      topicId: message.topicId,
+      participant: message.participant,
+      kind: message.kind,
+      phase: message.phase,
+      content: message.content,
+      debateSignal: fromPrismaDebateSignal(message.debateSignal),
+      turnIndex: message.turnIndex,
+      roundIndex: message.roundIndex,
+      createdAt: message.createdAt,
+    })) as MessageAnonymousDto[],
     reporterMember: null,
   } as ContextBuilderInput;
 }

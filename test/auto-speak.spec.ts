@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import {
+  DebateSignal,
   MessageKind,
   Participant,
   ParticipantStatus,
@@ -98,6 +99,7 @@ class InMemoryAutoSpeakPrisma {
     roundIndex: number;
     phase: TopicPhase;
     content: string;
+    debateSignal: DebateSignal;
     createdAt: Date;
     participant: { anonymousName: string; displayName: string };
   }> = [];
@@ -165,6 +167,7 @@ class InMemoryAutoSpeakPrisma {
         ).padStart(12, '0')}`,
         createdAt: now,
         kind: MessageKind.statement,
+        debateSignal: data.debateSignal ?? DebateSignal.Continue,
         participant,
         ...data,
       };
@@ -347,6 +350,50 @@ describe('Provider auto-speak', () => {
       'Human-started message',
       'Provider B response',
       'Provider C response',
+    ]);
+  });
+
+  it('uses structured provider output to submit debate readiness', async () => {
+    adapter.generate.mockReset();
+    adapter.generate
+      .mockResolvedValueOnce({
+        content: [
+          'Here is my message:',
+          '```json',
+          JSON.stringify({
+            content: 'Provider B is ready.',
+            debateSignal: 'ready_to_finalize',
+          }),
+          '```',
+        ].join('\n'),
+      })
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          content: 'Provider C is ready.',
+          debateSignal: 'ready_to_finalize',
+        }),
+      });
+
+    await request(app.getHttpServer())
+      .post(`/api/projects/auto-speak-project/topics/${topicId}/messages`)
+      .send({
+        participantId: appParticipantId,
+        content: 'Human-started message',
+        debateSignal: 'ready_to_finalize',
+      })
+      .expect(201);
+
+    await waitFor(() => expect(adapter.generate).toHaveBeenCalledTimes(2));
+
+    expect(prisma.messages.map((message) => message.content)).toEqual([
+      'Human-started message',
+      'Provider B is ready.',
+      'Provider C is ready.',
+    ]);
+    expect(prisma.messages.map((message) => message.debateSignal)).toEqual([
+      DebateSignal.ReadyToFinalize,
+      DebateSignal.ReadyToFinalize,
+      DebateSignal.ReadyToFinalize,
     ]);
   });
 

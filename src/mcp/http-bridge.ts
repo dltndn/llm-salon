@@ -297,6 +297,9 @@ export class McpHttpBridge {
         body: {
           participantId: readString(args, 'participantId'),
           content: readString(args, 'content'),
+          ...(typeof args.debateSignal === 'string'
+            ? { debateSignal: args.debateSignal }
+            : {}),
         },
       },
     );

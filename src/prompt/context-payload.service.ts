@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { ParticipantStatus, TurnStatus } from '@prisma/client';
 
 import { Audience } from '../common/audience';
+import { fromPrismaDebateSignal } from '../common/debate-signal';
 import type {
   DocumentAnonymousDto,
   MessageAnonymousDto,
@@ -132,6 +133,7 @@ export class ContextPayloadService {
               kind: message.kind,
               phase: message.phase,
               content: message.content,
+              debateSignal: fromPrismaDebateSignal(message.debateSignal),
               turnIndex: message.turnIndex,
               roundIndex: message.roundIndex,
               createdAt: message.createdAt,

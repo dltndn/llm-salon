@@ -1,10 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import {
+  DebateSignal,
   MessageKind,
   ParticipantStatus,
   Prisma,
   ReportStatus,
   Topic,
+  TopicMode,
   TopicPhase,
   Turn,
   TurnStatus,
@@ -15,6 +17,7 @@ import {
   PhaseTransitionError,
   WrongTurnError,
 } from '../common/errors/domain.errors';
+import { toPrismaDebateSignal } from '../common/debate-signal';
 import { DOMAIN_EVENT, DomainEvent } from '../events/domain-events';
 import { DomainEventBus } from '../events/event-bus';
 import { PrismaService } from '../prisma/prisma.service';
@@ -70,11 +73,6 @@ export class MessagesService {
 
       this.assertCurrentTurn(currentTurn, dto.participantId);
 
-      const phaseAfter = await this.resolvePhaseAfterMessage(
-        tx,
-        topic,
-        currentTurn,
-      );
       const message = await tx.message.create({
         data: {
           projectId,
@@ -85,6 +83,7 @@ export class MessagesService {
           roundIndex: currentTurn.roundIndex,
           phase: topic.phase,
           content: dto.content,
+          debateSignal: toPrismaDebateSignal(dto.debateSignal),
         },
         include: {
           participant: {
@@ -98,6 +97,12 @@ export class MessagesService {
         payload: { projectId, projectSlug, topicId: topic.id, message },
       });
       await this.incrementTopicVersion(tx, topic.id);
+
+      const phaseAfter = await this.resolvePhaseAfterMessage(
+        tx,
+        topic,
+        currentTurn,
+      );
 
       if (phaseAfter === TopicPhase.drafting) {
         await tx.turn.update({
@@ -237,7 +242,8 @@ export class MessagesService {
 
     if (
       topic.phase === TopicPhase.debating &&
-      (await this.reachedDebateLimit(tx, topic, currentTurn))
+      ((await this.reachedDebateLimit(tx, topic, currentTurn)) ||
+        (await this.reachedConsensusReadiness(tx, topic)))
     ) {
       return TopicPhase.drafting;
     }
@@ -247,6 +253,58 @@ export class MessagesService {
     }
 
     return topic.phase;
+  }
+
+  private async reachedConsensusReadiness(
+    tx: MessageTransaction,
+    topic: Topic,
+  ): Promise<boolean> {
+    if (topic.mode !== TopicMode.consensus) {
+      return false;
+    }
+
+    const activeParticipants = await tx.participant.findMany({
+      where: {
+        projectId: topic.projectId,
+        status: ParticipantStatus.active,
+      },
+      select: { id: true },
+    });
+
+    if (activeParticipants.length === 0) {
+      return false;
+    }
+
+    const activeParticipantIds = activeParticipants.map(
+      (participant) => participant.id,
+    );
+    const statements = await tx.message.findMany({
+      where: {
+        topicId: topic.id,
+        kind: MessageKind.statement,
+        phase: TopicPhase.debating,
+        participantId: { in: activeParticipantIds },
+      },
+      orderBy: { turnIndex: 'asc' },
+      select: {
+        participantId: true,
+        debateSignal: true,
+      },
+    });
+    const latestSignalsByParticipantId = new Map<string, DebateSignal>();
+
+    for (const statement of statements) {
+      latestSignalsByParticipantId.set(
+        statement.participantId,
+        statement.debateSignal,
+      );
+    }
+
+    return activeParticipants.every(
+      (participant) =>
+        latestSignalsByParticipantId.get(participant.id) ===
+        DebateSignal.ReadyToFinalize,
+    );
   }
 
   private async submitFeedback(

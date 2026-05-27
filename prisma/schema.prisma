@@ -83,6 +83,13 @@ enum MessageKind {
   @@map("message_kind")
 }
 
+enum DebateSignal {
+  Continue        @map("continue")
+  ReadyToFinalize @map("ready_to_finalize")
+
+  @@map("debate_signal")
+}
+
 model Project {
   id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   slug         String        @unique
@@ -176,6 +183,7 @@ model Message {
   roundIndex    Int         @map("round_index")
   phase         TopicPhase
   content       String
+  debateSignal  DebateSignal @default(Continue) @map("debate_signal")
   createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   project       Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   topic         Topic       @relation(fields: [topicId], references: [id], onDelete: Cascade)

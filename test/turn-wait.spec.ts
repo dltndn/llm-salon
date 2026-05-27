@@ -1,4 +1,11 @@
 import { INestApplication } from '@nestjs/common';
+import {
+  DebateSignal,
+  MessageKind,
+  ParticipantStatus,
+  ParticipantType,
+  TopicPhase,
+} from '@prisma/client';
 import * as request from 'supertest';
 
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -105,6 +112,68 @@ describe('Turn wait REST API', () => {
       wakeupReason: 'timeout',
     });
   });
+
+  it('wakes when consensus readiness advances the topic to drafting', async () => {
+    const { topicId, participantAId, participantBId } =
+      await createProjectWithTopic(app);
+    const providerId = 'provider-ready';
+
+    prisma.seedParticipant('wait-project', {
+      id: providerId,
+      displayName: 'Provider',
+      anonymousName: 'Member C',
+      participantType: ParticipantType.provider,
+      providerName: 'openai',
+      modelName: 'Provider Model',
+      clientName: null,
+      status: ParticipantStatus.active,
+      joinOrder: 3,
+      joinedAt: new Date('2026-05-18T00:00:00.000Z'),
+      createdAt: new Date('2026-05-18T00:00:00.000Z'),
+      updatedAt: new Date('2026-05-18T00:00:00.000Z'),
+    });
+    prisma.seedMessage({
+      topicId,
+      participantId: providerId,
+      kind: MessageKind.statement,
+      phase: TopicPhase.debating,
+      content: 'Provider is already ready.',
+      debateSignal: DebateSignal.ReadyToFinalize,
+    });
+
+    await submitMessage(app, topicId, participantAId, 'Ready from A', {
+      debateSignal: 'ready_to_finalize',
+    });
+    const beforeWait = await request(app.getHttpServer())
+      .get(`/api/projects/wait-project/topics/${topicId}/turn`)
+      .query({ participantId: participantAId, audience: 'anonymous' })
+      .expect(200);
+    const waitPromise = request(app.getHttpServer())
+      .get(`/api/projects/wait-project/topics/${topicId}/turn/wait`)
+      .query({
+        participantId: participantAId,
+        afterTopicVersion: beforeWait.body.topicVersion,
+        audience: 'anonymous',
+        timeoutMs: 1000,
+      })
+      .expect(200)
+      .then((response) => response);
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await submitMessage(app, topicId, participantBId, 'Ready from B', {
+      debateSignal: 'ready_to_finalize',
+    });
+    const response = await waitPromise;
+
+    expect(response.body).toMatchObject({
+      isMyTurn: false,
+      phase: 'drafting',
+      wakeupReason: 'phase_changed',
+    });
+    expect(response.body.topicVersion).toBeGreaterThan(
+      beforeWait.body.topicVersion,
+    );
+  });
 });
 
 async function createProjectWithTopic(app: INestApplication) {
@@ -145,9 +214,10 @@ async function submitMessage(
   topicId: string,
   participantId: string,
   content: string,
+  options: { debateSignal?: string } = {},
 ) {
   await request(app.getHttpServer())
     .post(`/api/projects/wait-project/topics/${topicId}/messages`)
-    .send({ participantId, content })
+    .send({ participantId, content, ...options })
     .expect(201);
 }
