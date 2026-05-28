@@ -128,7 +128,7 @@ describe('Turn wait REST API', () => {
       clientName: null,
       status: ParticipantStatus.active,
       joinOrder: 3,
-      joinedAt: new Date('2026-05-18T00:00:00.000Z'),
+      joinedAt: new Date('2026-05-29T00:00:00.000Z'),
       createdAt: new Date('2026-05-18T00:00:00.000Z'),
       updatedAt: new Date('2026-05-18T00:00:00.000Z'),
     });
@@ -144,14 +144,17 @@ describe('Turn wait REST API', () => {
     await submitMessage(app, topicId, participantAId, 'Ready from A', {
       debateSignal: 'ready_to_finalize',
     });
+    await submitMessage(app, topicId, participantBId, 'Ready from B', {
+      debateSignal: 'ready_to_finalize',
+    });
     const beforeWait = await request(app.getHttpServer())
       .get(`/api/projects/wait-project/topics/${topicId}/turn`)
-      .query({ participantId: participantAId, audience: 'anonymous' })
+      .query({ participantId: participantBId, audience: 'anonymous' })
       .expect(200);
     const waitPromise = request(app.getHttpServer())
       .get(`/api/projects/wait-project/topics/${topicId}/turn/wait`)
       .query({
-        participantId: participantAId,
+        participantId: participantBId,
         afterTopicVersion: beforeWait.body.topicVersion,
         audience: 'anonymous',
         timeoutMs: 1000,
@@ -160,7 +163,7 @@ describe('Turn wait REST API', () => {
       .then((response) => response);
 
     await new Promise((resolve) => setTimeout(resolve, 10));
-    await submitMessage(app, topicId, participantBId, 'Ready from B', {
+    await submitMessage(app, topicId, participantAId, 'Ready from A again', {
       debateSignal: 'ready_to_finalize',
     });
     const response = await waitPromise;

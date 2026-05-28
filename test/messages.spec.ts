@@ -103,6 +103,27 @@ class InMemoryMessagesPrisma {
     );
   }
 
+  setParticipantWaiting(participantId: string) {
+    this.participants = this.participants.map((participant) =>
+      participant.id === participantId
+        ? { ...participant, status: ParticipantStatus.waiting }
+        : participant,
+    );
+  }
+
+  getParticipantStatus(participantId: string) {
+    return this.participants.find((participant) => participant.id === participantId)
+      ?.status;
+  }
+
+  addParticipant(participant: Participant) {
+    this.participants.push(participant);
+  }
+
+  seedTurn(turn: Turn) {
+    this.turns.push(turn);
+  }
+
   seedStatement(participantId: string, debateSignal: DebateSignal) {
     this.messages.push({
       id: `seed-${this.messages.length + 1}`,
@@ -197,6 +218,23 @@ class InMemoryMessagesPrisma {
           : {}),
       });
     }),
+    findMany: jest.fn(({ where, select }) => {
+      const turns = this.turns.filter(
+        (turn) =>
+          (!where.topicId || turn.topicId === where.topicId) &&
+          (!where.currentParticipantId?.in ||
+            where.currentParticipantId.in.includes(
+              turn.currentParticipantId,
+            )) &&
+          (!where.status?.not || turn.status !== where.status.not),
+      );
+
+      return Promise.resolve(
+        select
+          ? turns.map((turn) => pickSelected(turn, select))
+          : turns.map((turn) => ({ ...turn })),
+      );
+    }),
     update: jest.fn(({ where, data }) => {
       const index = this.turns.findIndex((turn) => turn.id === where.id);
       this.turns[index] = { ...this.turns[index], ...data, updatedAt: now };
@@ -225,7 +263,10 @@ class InMemoryMessagesPrisma {
         .filter(
           (participant) =>
             (!where?.projectId || participant.projectId === where.projectId) &&
-            (!where?.status || participant.status === where.status),
+            (!where?.status ||
+              (Array.isArray(where.status.in)
+                ? where.status.in.includes(participant.status)
+                : participant.status === where.status)),
         )
         .sort((left, right) =>
           orderBy?.joinOrder === 'asc'
@@ -238,6 +279,22 @@ class InMemoryMessagesPrisma {
           ? participants.map((participant) => pickSelected(participant, select))
           : participants,
       );
+    }),
+    updateMany: jest.fn(({ where, data }) => {
+      let count = 0;
+      this.participants = this.participants.map((participant) => {
+        if (
+          (!where.id || participant.id === where.id) &&
+          (!where.status || participant.status === where.status)
+        ) {
+          count += 1;
+          return { ...participant, ...data, updatedAt: now };
+        }
+
+        return participant;
+      });
+
+      return Promise.resolve({ count });
     }),
   };
 
@@ -548,6 +605,142 @@ describe('Message REST API', () => {
         payload: expect.objectContaining({ phase: TopicPhase.drafting }),
       }),
     );
+  });
+
+  it('keeps debating until waiting participants in the current round receive their first turn', async () => {
+    prisma.setDebatingLimits({});
+    prisma.setParticipantWaiting(participantBId);
+    prisma.seedStatement(providerParticipantId, DebateSignal.ReadyToFinalize);
+
+    const firstResponse = await request(app.getHttpServer())
+      .post(`/api/projects/message-project/topics/${topicId}/messages`)
+      .send({
+        participantId: participantAId,
+        content: 'I am ready, but another current-round member has not spoken.',
+        debateSignal: 'ready_to_finalize',
+      })
+      .expect(201);
+
+    expect(firstResponse.body).toMatchObject({
+      nextMember: 'Member B',
+      phaseAfter: TopicPhase.debating,
+    });
+    expect(prisma.getParticipantStatus(participantBId)).toBe(
+      ParticipantStatus.active,
+    );
+
+    const secondResponse = await request(app.getHttpServer())
+      .post(`/api/projects/message-project/topics/${topicId}/messages`)
+      .send({
+        participantId: participantBId,
+        content: 'I have now had my first turn and am ready.',
+        debateSignal: 'ready_to_finalize',
+      })
+      .expect(201);
+
+    expect(secondResponse.body).toMatchObject({
+      nextMember: null,
+      phaseAfter: TopicPhase.drafting,
+    });
+  });
+
+  it('allows consensus early stop when only mid-round arrivals are waiting', async () => {
+    prisma.setDebatingLimits({});
+    prisma.seedStatement(providerParticipantId, DebateSignal.ReadyToFinalize);
+    prisma.addParticipant({
+      id: '99999999-9999-4999-8999-999999999999',
+      projectId,
+      displayName: 'Member D',
+      anonymousName: 'Member D',
+      participantType: ParticipantType.app,
+      providerName: null,
+      modelName: 'Model',
+      clientName: 'Client D',
+      status: ParticipantStatus.waiting,
+      joinOrder: 4,
+      joinedAt: new Date('2026-05-19T01:00:00.000Z'),
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/projects/message-project/topics/${topicId}/messages`)
+      .send({
+        participantId: participantAId,
+        content: 'I am ready.',
+        debateSignal: 'ready_to_finalize',
+      })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/projects/message-project/topics/${topicId}/messages`)
+      .send({
+        participantId: participantBId,
+        content: 'I am ready too.',
+        debateSignal: 'ready_to_finalize',
+      })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      nextMember: null,
+      phaseAfter: TopicPhase.drafting,
+    });
+  });
+
+  it('allows consensus early stop when a waiting participant already had an assigned turn', async () => {
+    prisma.setDebatingLimits({});
+    prisma.seedStatement(providerParticipantId, DebateSignal.ReadyToFinalize);
+    const legacyParticipantId = '99999999-9999-4999-8999-999999999998';
+    prisma.addParticipant({
+      id: legacyParticipantId,
+      projectId,
+      displayName: 'Member D',
+      anonymousName: 'Member D',
+      participantType: ParticipantType.app,
+      providerName: null,
+      modelName: 'Model',
+      clientName: 'Client D',
+      status: ParticipantStatus.waiting,
+      joinOrder: 4,
+      joinedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+    prisma.seedTurn({
+      id: '99999999-9999-4999-8999-999999999997',
+      projectId,
+      topicId,
+      currentParticipantId: legacyParticipantId,
+      turnIndex: 0,
+      roundIndex: -1,
+      phase: TopicPhase.debating,
+      status: TurnStatus.completed,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/projects/message-project/topics/${topicId}/messages`)
+      .send({
+        participantId: participantAId,
+        content: 'I am ready.',
+        debateSignal: 'ready_to_finalize',
+      })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/projects/message-project/topics/${topicId}/messages`)
+      .send({
+        participantId: participantBId,
+        content: 'I am ready too.',
+        debateSignal: 'ready_to_finalize',
+      })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      nextMember: null,
+      phaseAfter: TopicPhase.drafting,
+    });
   });
 
   it('keeps consensus topics debating when a latest signal is continue', async () => {

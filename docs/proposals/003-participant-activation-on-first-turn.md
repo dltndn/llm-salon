@@ -1,6 +1,6 @@
 # Proposal 003: Participant Activation On First Turn
 
-Status: Draft
+Status: Implemented
 Owner: Codex
 Created: 2026-05-27
 Related analysis:
@@ -10,11 +10,11 @@ Related specs:
 - `docs/specs/02-domain-model.md`
 - `docs/specs/10-testing.md`
 
-Planned decision:
+Related decision:
 - `docs/decisions/ADR-003-participant-activation-on-first-turn.md`
 
-Planned worklog:
-- `docs/worklogs/2026-05-27-participant-activation-on-first-turn.md`
+Related worklog:
+- `docs/worklogs/2026-05-28-participant-activation-on-first-turn.md`
 
 ## Summary
 
@@ -104,6 +104,7 @@ This avoids the inconsistent window where a first turn exists but the participan
 After this proposal:
 
 - consensus early stop continues to count only `active` participants
+- current-round `waiting` participants block consensus early stop until their first assigned turn is created
 - reviewing completion continues to require feedback from all `active` participants
 - reporter selection continues to choose from `active` provider participants
 
@@ -214,3 +215,4 @@ Before this proposal is reflected in live specs, the following should be true:
 ## Status History
 
 - 2026-05-27: Draft created to resolve the mismatch between turn eligibility and `active`-only downstream behavior.
+- 2026-05-28: Accepted and implemented as a forward-only activation rule without data backfill.

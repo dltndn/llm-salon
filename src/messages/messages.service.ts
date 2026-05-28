@@ -243,7 +243,7 @@ export class MessagesService {
     if (
       topic.phase === TopicPhase.debating &&
       ((await this.reachedDebateLimit(tx, topic, currentTurn)) ||
-        (await this.reachedConsensusReadiness(tx, topic)))
+        (await this.reachedConsensusReadiness(tx, topic, currentTurn)))
     ) {
       return TopicPhase.drafting;
     }
@@ -258,18 +258,55 @@ export class MessagesService {
   private async reachedConsensusReadiness(
     tx: MessageTransaction,
     topic: Topic,
+    currentTurn: Turn,
   ): Promise<boolean> {
     if (topic.mode !== TopicMode.consensus) {
       return false;
     }
 
-    const activeParticipants = await tx.participant.findMany({
-      where: {
-        projectId: topic.projectId,
-        status: ParticipantStatus.active,
-      },
-      select: { id: true },
-    });
+    const [participants, roundStart] = await Promise.all([
+      tx.participant.findMany({
+        where: {
+          projectId: topic.projectId,
+          status: { in: [ParticipantStatus.active, ParticipantStatus.waiting] },
+        },
+        orderBy: { joinOrder: 'asc' },
+        select: { id: true, joinOrder: true, status: true, joinedAt: true },
+      }),
+      tx.turn.findFirst({
+        where: {
+          topicId: currentTurn.topicId,
+          roundIndex: currentTurn.roundIndex,
+        },
+        orderBy: { turnIndex: 'asc' },
+        select: { createdAt: true },
+      }),
+    ]);
+    const currentParticipant = participants.find(
+      (participant) => participant.id === currentTurn.currentParticipantId,
+    );
+    const roundStartedAt = roundStart?.createdAt ?? currentTurn.createdAt;
+    const pendingCurrentRoundParticipants = participants.filter(
+      (participant) =>
+        participant.status === ParticipantStatus.waiting &&
+        currentParticipant !== undefined &&
+        participant.joinOrder > currentParticipant.joinOrder &&
+        participant.joinedAt <= roundStartedAt,
+    );
+
+    if (
+      await this.hasUnassignedCurrentRoundParticipant(
+        tx,
+        topic.id,
+        pendingCurrentRoundParticipants.map((participant) => participant.id),
+      )
+    ) {
+      return false;
+    }
+
+    const activeParticipants = participants.filter(
+      (participant) => participant.status === ParticipantStatus.active,
+    );
 
     if (activeParticipants.length === 0) {
       return false;
@@ -304,6 +341,34 @@ export class MessagesService {
       (participant) =>
         latestSignalsByParticipantId.get(participant.id) ===
         DebateSignal.ReadyToFinalize,
+    );
+  }
+
+  private async hasUnassignedCurrentRoundParticipant(
+    tx: MessageTransaction,
+    topicId: string,
+    participantIds: string[],
+  ): Promise<boolean> {
+    if (participantIds.length === 0) {
+      return false;
+    }
+
+    const assignedTurns = await tx.turn.findMany({
+      where: {
+        topicId,
+        currentParticipantId: { in: participantIds },
+        status: { not: TurnStatus.skipped },
+      },
+      select: { currentParticipantId: true },
+    });
+    const assignedParticipantIds = new Set(
+      assignedTurns
+        .map((turn) => turn.currentParticipantId)
+        .filter((participantId): participantId is string => participantId !== null),
+    );
+
+    return participantIds.some(
+      (participantId) => !assignedParticipantIds.has(participantId),
     );
   }
 

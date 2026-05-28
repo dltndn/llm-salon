@@ -31,8 +31,8 @@ All ENUMs are defined as PostgreSQL ENUM types and mapped in Prisma.
 - `provider` — API Provider participant (called directly by the server)
 
 ### `participant_status`
-- `active` — registered and eligible for turns
-- `waiting` — registered but not yet in the turn rotation
+- `active` — registered, inserted into the actual turn rotation, and counted by active-only rules
+- `waiting` — registered but not yet inserted into the actual turn rotation
 - `inactive` — temporarily excluded from turns
 - `removed` — permanently removed; name is retained to prevent reuse
 
@@ -87,6 +87,8 @@ All ENUMs are defined as PostgreSQL ENUM types and mapped in Prisma.
   3. If none exists: increment `round_index` and select the lowest `join_order` overall.
 - Inactive/removed participants are auto-skipped; their turn row is recorded with `status = skipped`.
 - **New participants join from the next round.** Mid-round arrivals are not inserted into the current round's rotation.
+- When the system creates a participant's first assigned `turn` row and that participant is still `waiting`, the participant is promoted to `active` in the same DB transaction.
+- The automatic promotion is one-way. Participants do not move back from `active` to `waiting`; `inactive` or `removed` are used when participation must stop.
 
 ### Topic Phase State Machine
 
@@ -112,9 +114,10 @@ For `mode = consensus`, the system evaluates early-stop readiness after each suc
 - Only participants with `status = active` are counted.
 - Each active participant's latest `statement` message in the topic with `phase = debating` supplies that participant's current `debate_signal`.
 - A participant with no `debating`-phase `statement` is treated as not ready.
+- A `waiting` participant that was already part of the current round when the round began blocks early stop until their first assigned turn is created.
 - If every active participant's latest signal is `ready_to_finalize`, the topic transitions from `debating` to `drafting` immediately.
 - Any later `continue` signal from an active participant cancels readiness until unanimity is reached again.
-- `waiting`, `inactive`, and `removed` participants do not block consensus early stop.
+- Mid-round `waiting` arrivals, `inactive` participants, and `removed` participants do not block consensus early stop.
 - `options` topics do not use this early-stop rule.
 
 ### Participant Registration Constraints

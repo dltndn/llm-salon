@@ -64,6 +64,7 @@ Behavior:
 
 - During `debating`, the field is stored on the `statement` message.
 - For `consensus` topics, after each `debating`-phase `statement`, the server checks every active participant's latest `debateSignal`.
+- A `waiting` participant that belongs to the current round must receive their first assigned turn before early stop can complete.
 - If every active participant's latest signal is `ready_to_finalize`, the topic transitions to `drafting` immediately and the response returns `phaseAfter: "drafting"` with `nextMember: null`.
 - For `options` topics, and for feedback/report/system messages, the field does not trigger early stop.
 

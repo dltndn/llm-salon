@@ -20,37 +20,41 @@ export class TopicsService {
     dto: CreateTopicDto,
     audience: Audience = 'human',
   ) {
-    const project = await this.prisma.project.findUnique({
-      where: { slug: projectSlug },
-      select: { id: true },
-    });
+    const topic = await this.prisma.$transaction(async (tx) => {
+      const project = await tx.project.findUnique({
+        where: { slug: projectSlug },
+        select: { id: true },
+      });
 
-    if (!project) {
-      throw new NotFoundException(`Project not found: ${projectSlug}`);
-    }
+      if (!project) {
+        throw new NotFoundException(`Project not found: ${projectSlug}`);
+      }
 
-    const topic = await this.prisma.topic.create({
-      data: {
-        projectId: project.id,
-        title: dto.title,
-        description: dto.description,
-        maxRounds: dto.maxRounds,
-        maxTurns: dto.maxTurns,
-        mode: dto.mode ?? TopicMode.consensus,
-        phase: TopicPhase.preparing,
-      },
-    });
-    const firstParticipant = await this.prisma.participant.findFirst({
-      where: {
-        projectId: project.id,
-        status: { in: [ParticipantStatus.active, ParticipantStatus.waiting] },
-      },
-      orderBy: { joinOrder: 'asc' },
-      select: { id: true },
-    });
+      const topic = await tx.topic.create({
+        data: {
+          projectId: project.id,
+          title: dto.title,
+          description: dto.description,
+          maxRounds: dto.maxRounds,
+          maxTurns: dto.maxTurns,
+          mode: dto.mode ?? TopicMode.consensus,
+          phase: TopicPhase.preparing,
+        },
+      });
+      const firstParticipant = await tx.participant.findFirst({
+        where: {
+          projectId: project.id,
+          status: { in: [ParticipantStatus.active, ParticipantStatus.waiting] },
+        },
+        orderBy: { joinOrder: 'asc' },
+        select: { id: true },
+      });
 
-    if (firstParticipant) {
-      await this.prisma.turn.create({
+      if (!firstParticipant) {
+        return topic;
+      }
+
+      await tx.turn.create({
         data: {
           projectId: project.id,
           topicId: topic.id,
@@ -61,16 +65,22 @@ export class TopicsService {
           status: TurnStatus.in_progress,
         },
       });
-      await this.prisma.topic.update({
+      await tx.participant.updateMany({
+        where: {
+          id: firstParticipant.id,
+          status: ParticipantStatus.waiting,
+        },
+        data: { status: ParticipantStatus.active },
+      });
+
+      return tx.topic.update({
         where: { id: topic.id },
         data: {
           currentTurnIndex: 1,
           version: { increment: 1 },
         },
       });
-      topic.currentTurnIndex = 1;
-      topic.version += 1;
-    }
+    });
 
     return serializeTopic(topic, audience);
   }

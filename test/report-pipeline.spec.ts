@@ -175,6 +175,20 @@ class InMemoryReportPipelinePrisma {
 
       return Promise.resolve(participant ? { ...participant } : null);
     }),
+    updateMany: jest.fn(({ where, data }) => {
+      let count = 0;
+      this.participants.forEach((participant, index) => {
+        if (
+          (!where.id || participant.id === where.id) &&
+          (!where.status || participant.status === where.status)
+        ) {
+          count += 1;
+          this.participants[index] = { ...participant, ...data, updatedAt: now };
+        }
+      });
+
+      return Promise.resolve({ count });
+    }),
   };
 
   readonly turn = {
@@ -219,6 +233,23 @@ class InMemoryReportPipelinePrisma {
             }
           : {}),
       });
+    }),
+    findMany: jest.fn(({ where, select }) => {
+      const turns = this.turns.filter(
+        (turn) =>
+          (!where.topicId || turn.topicId === where.topicId) &&
+          (!where.currentParticipantId?.in ||
+            where.currentParticipantId.in.includes(
+              turn.currentParticipantId,
+            )) &&
+          (!where.status?.not || turn.status !== where.status.not),
+      );
+
+      return Promise.resolve(
+        select
+          ? turns.map((turn) => pickSelected(turn, select))
+          : turns.map((turn) => ({ ...turn })),
+      );
     }),
     update: jest.fn(({ where, data }) => {
       const index = this.turns.findIndex((turn) => turn.id === where.id);
@@ -754,6 +785,17 @@ function matchesReportWhere(
     (where.topicId === undefined || report.topicId === where.topicId) &&
     (where.status === undefined || report.status === where.status) &&
     (where.draftContent === undefined || report.draftContent === where.draftContent)
+  );
+}
+
+function pickSelected<T extends Record<string, unknown>>(
+  value: T,
+  select: Record<string, boolean>,
+) {
+  return Object.fromEntries(
+    Object.keys(select)
+      .filter((key) => select[key])
+      .map((key) => [key, value[key]]),
   );
 }
 

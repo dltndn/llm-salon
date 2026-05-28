@@ -12,11 +12,13 @@
 
 ### Round-Robin Algorithm (`turns/`)
 - Table-driven tests covering: normal rotation, participant skip (inactive/removed), round increment, late join (next-round-only), single participant edge case.
+- Service tests verify that creating a participant's first assigned turn promotes a `waiting` participant to `active` in the same transaction.
 
 ### Topic Phase State Machine (`topics/`)
 - All valid transitions pass.
 - All invalid transitions raise `PhaseTransitionError`.
 - Consensus early stop: a `consensus` topic transitions from `debating` to `drafting` when every active participant's latest debating `statement` has `debateSignal = ready_to_finalize`.
+- Consensus first-turn guard: a `waiting` participant that belongs to the current round receives their first turn before early stop can move the topic to `drafting`.
 - Consensus reset: any active participant's later `continue` signal prevents early stop until unanimity is reached again.
 - Options mode: `ready_to_finalize` signals do not early-stop `options` topics.
 - Concurrent duplicate transitions are rejected.
@@ -71,6 +73,7 @@ These specific scenarios must have permanent test coverage:
 | `wait_for_turn` timeout with no turn change | Returns `wakeupReason: "timeout"` and can be called again safely |
 | `submit_message` with wrong participant | Returns `WRONG_TURN` error with current member's anonymous name |
 | `submit_message` with unanimous consensus readiness | Returns `{ nextMember: null, phaseAfter: "drafting" }` |
+| `submit_message` with a current-round waiting participant | Returns the waiting participant as `nextMember` and promotes them to `active` before consensus early stop can complete |
 | Document upload exceeding profile limit | Returns `413` with descriptive message |
 
 ---

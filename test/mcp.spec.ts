@@ -432,7 +432,7 @@ describe('MCP stdio server', () => {
       clientName: null,
       status: ParticipantStatus.active,
       joinOrder: 3,
-      joinedAt: new Date('2026-05-18T00:00:00.000Z'),
+      joinedAt: new Date('2026-05-29T00:00:00.000Z'),
       createdAt: new Date('2026-05-18T00:00:00.000Z'),
       updatedAt: new Date('2026-05-18T00:00:00.000Z'),
     });
@@ -466,12 +466,27 @@ describe('MCP stdio server', () => {
       content: 'B is ready.',
       debateSignal: 'ready_to_finalize',
     });
-
     expect(firstSubmit).toMatchObject({
       nextMember: 'Member B',
       phaseAfter: 'debating',
     });
     expect(secondSubmit).toMatchObject({
+      nextMember: 'Member A',
+      phaseAfter: 'debating',
+    });
+
+    const thirdSubmit = await callTool<{
+      phaseAfter: string;
+      nextMember: string | null;
+    }>(child, 'submit_message', {
+      projectId: project.projectId,
+      topicId: topic.topicId,
+      participantId: participantA.participantId,
+      content: 'A is ready again.',
+      debateSignal: 'ready_to_finalize',
+    });
+
+    expect(thirdSubmit).toMatchObject({
       nextMember: null,
       phaseAfter: 'drafting',
     });

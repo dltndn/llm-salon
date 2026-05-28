@@ -143,8 +143,24 @@ class InMemoryAutoSpeakPrisma {
 
   readonly participant = {
     findMany: jest.fn(() =>
-      Promise.resolve(this.participants.map((participant) => ({ ...participant }))),
+      Promise.resolve(
+        this.participants.map((participant) => ({ ...participant })),
+      ),
     ),
+    updateMany: jest.fn(({ where, data }) => {
+      let count = 0;
+      this.participants.forEach((participant, index) => {
+        if (
+          (!where.id || participant.id === where.id) &&
+          (!where.status || participant.status === where.status)
+        ) {
+          count += 1;
+          this.participants[index] = { ...participant, ...data, updatedAt: now };
+        }
+      });
+
+      return Promise.resolve({ count });
+    }),
   };
 
   readonly document = {
@@ -230,6 +246,23 @@ class InMemoryAutoSpeakPrisma {
             }
           : {}),
       });
+    }),
+    findMany: jest.fn(({ where, select }) => {
+      const turns = this.turns.filter(
+        (turn) =>
+          (!where.topicId || turn.topicId === where.topicId) &&
+          (!where.currentParticipantId?.in ||
+            where.currentParticipantId.in.includes(
+              turn.currentParticipantId,
+            )) &&
+          (!where.status?.not || turn.status !== where.status.not),
+      );
+
+      return Promise.resolve(
+        select
+          ? turns.map((turn) => pickSelected(turn, select))
+          : turns.map((turn) => ({ ...turn })),
+      );
     }),
     update: jest.fn(({ where, data }) => {
       const index = this.turns.findIndex((turn) => turn.id === where.id);
@@ -482,6 +515,17 @@ async function waitFor(assertion: () => void): Promise<void> {
   }
 
   throw lastError;
+}
+
+function pickSelected<T extends Record<string, unknown>>(
+  value: T,
+  select: Record<string, boolean>,
+) {
+  return Object.fromEntries(
+    Object.keys(select)
+      .filter((key) => select[key])
+      .map((key) => [key, value[key]]),
+  );
 }
 
 function applyTopicUpdateData(

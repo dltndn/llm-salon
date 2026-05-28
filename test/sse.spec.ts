@@ -287,6 +287,23 @@ class InMemorySseMessagesPrisma {
           : {}),
       });
     }),
+    findMany: jest.fn(({ where, select }) => {
+      const turns = this.turns.filter(
+        (turn) =>
+          (!where.topicId || turn.topicId === where.topicId) &&
+          (!where.currentParticipantId?.in ||
+            where.currentParticipantId.in.includes(
+              turn.currentParticipantId,
+            )) &&
+          (!where.status?.not || turn.status !== where.status.not),
+      );
+
+      return Promise.resolve(
+        select
+          ? turns.map((turn) => pickSelected(turn, select))
+          : turns.map((turn) => ({ ...turn })),
+      );
+    }),
     update: jest.fn(({ where, data }) => {
       const index = this.turns.findIndex((turn) => turn.id === where.id);
       this.turns[index] = { ...this.turns[index], ...data, updatedAt: now };
@@ -316,6 +333,7 @@ class InMemorySseMessagesPrisma {
         this.buildParticipant(participantBId, 2, 'Display B', 'Member B'),
       ]),
     ),
+    updateMany: jest.fn(() => Promise.resolve({ count: 0 })),
   };
 
   readonly message = {
@@ -550,6 +568,17 @@ function emitProjectClosed(events: DomainEventBus): void {
       projectSlug,
     },
   });
+}
+
+function pickSelected<T extends Record<string, unknown>>(
+  value: T,
+  select: Record<string, boolean>,
+) {
+  return Object.fromEntries(
+    Object.keys(select)
+      .filter((key) => select[key])
+      .map((key) => [key, value[key]]),
+  );
 }
 
 function applyTopicUpdateData(

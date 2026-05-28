@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, Turn, TurnStatus } from '@prisma/client';
+import { ParticipantStatus, Prisma, Turn, TurnStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { PlannedTurn, resolveNextTurns } from './turn-engine';
@@ -120,7 +120,19 @@ export class TurnEngineService {
     currentTurn: Turn,
     plannedTurn: PlannedTurn,
   ): Promise<Turn> {
-    return tx.turn.create({
+    return this.createPlannedTurnAndActivateParticipant(
+      tx,
+      currentTurn,
+      plannedTurn,
+    );
+  }
+
+  private async createPlannedTurnAndActivateParticipant(
+    tx: TurnTransaction,
+    currentTurn: Turn,
+    plannedTurn: PlannedTurn,
+  ): Promise<Turn> {
+    const turn = await tx.turn.create({
       data: {
         projectId: currentTurn.projectId,
         topicId: currentTurn.topicId,
@@ -131,5 +143,20 @@ export class TurnEngineService {
         status: plannedTurn.status,
       },
     });
+
+    if (
+      plannedTurn.status === TurnStatus.in_progress &&
+      plannedTurn.participantId
+    ) {
+      await tx.participant.updateMany({
+        where: {
+          id: plannedTurn.participantId,
+          status: ParticipantStatus.waiting,
+        },
+        data: { status: ParticipantStatus.active },
+      });
+    }
+
+    return turn;
   }
 }

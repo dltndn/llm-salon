@@ -108,7 +108,7 @@ Allowed values:
 - `"continue"`
 - `"ready_to_finalize"`
 
-For `consensus` topics in `debating`, the server transitions to `drafting` once every active participant's latest `statement` message has `debateSignal = "ready_to_finalize"`. Use `"ready_to_finalize"` only when the discussion has enough material for the report and the caller has no unresolved objection that requires another debate turn.
+For `consensus` topics in `debating`, the server transitions to `drafting` once every active participant's latest `statement` message has `debateSignal = "ready_to_finalize"` and no current-round `waiting` participant still needs their first assigned turn. Use `"ready_to_finalize"` only when the discussion has enough material for the report and the caller has no unresolved objection that requires another debate turn.
 
 Errors:
 - `WRONG_TURN` — caller is not the current speaker; response includes the current turn holder's anonymous name.

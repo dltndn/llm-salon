@@ -63,6 +63,7 @@ describe('TurnEngineService', () => {
           ),
       },
       participant: {
+        updateMany: jest.fn(),
         findMany: jest.fn().mockResolvedValue([
           {
             id: 'member-a',
@@ -122,6 +123,7 @@ describe('TurnEngineService', () => {
           .mockResolvedValueOnce(createdTurns[1]),
       },
       participant: {
+        updateMany: jest.fn(),
         findMany: jest.fn().mockResolvedValue([
           {
             id: 'member-a',
@@ -178,6 +180,14 @@ describe('TurnEngineService', () => {
         phase: TopicPhase.debating,
         status: TurnStatus.in_progress,
       },
+    });
+    expect(tx.participant.updateMany).toHaveBeenCalledTimes(1);
+    expect(tx.participant.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'member-c',
+        status: ParticipantStatus.waiting,
+      },
+      data: { status: ParticipantStatus.active },
     });
     expect(tx.topic.update).toHaveBeenCalledWith({
       where: { id: 'topic-1' },

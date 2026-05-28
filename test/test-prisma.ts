@@ -281,6 +281,19 @@ export class InMemoryPrisma {
         ),
       );
     }),
+    updateMany: jest.fn(({ where, data }) => {
+      let count = 0;
+      this.participants = this.participants.map((participant) => {
+        if (this.filterParticipants(where).some((item) => item.id === participant.id)) {
+          count += 1;
+          return { ...participant, ...data, updatedAt: new Date() };
+        }
+
+        return participant;
+      });
+
+      return Promise.resolve({ count });
+    }),
   };
 
   readonly document = {
@@ -355,6 +368,21 @@ export class InMemoryPrisma {
     findUnique: jest.fn(({ where, include }) => {
       const turn = this.turns.find((item) => item.id === where.id) ?? null;
       return Promise.resolve(this.serializeTurn(turn, undefined, include));
+    }),
+    findMany: jest.fn(({ where, select }) => {
+      const turns = this.turns.filter(
+        (turn) =>
+          (!where?.topicId || turn.topicId === where.topicId) &&
+          (!where?.currentParticipantId?.in ||
+            where.currentParticipantId.in.includes(
+              turn.currentParticipantId,
+            )) &&
+          (!where?.status?.not || turn.status !== where.status.not),
+      );
+
+      return Promise.resolve(
+        turns.map((turn) => (select ? pickSelected(turn, select) : { ...turn })),
+      );
     }),
     update: jest.fn(({ where, data }) => {
       const index = this.turns.findIndex((turn) => turn.id === where.id);

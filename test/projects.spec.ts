@@ -1,8 +1,10 @@
 import { INestApplication } from '@nestjs/common';
 import {
   Participant,
+  ParticipantStatus,
   Prisma,
   ProjectStatus,
+  Turn,
   TopicMode,
   TopicPhase,
 } from '@prisma/client';
@@ -39,8 +41,10 @@ type StoredTopic = {
 class InMemoryPrisma {
   private projects: StoredProject[] = [];
   private topics: StoredTopic[] = [];
+  private turns: Turn[] = [];
   private nextProjectId = 1;
   private nextTopicId = 1;
+  private nextTurnId = 1;
 
   seedParticipant(
     projectSlug: string,
@@ -56,6 +60,11 @@ class InMemoryPrisma {
       ...participant,
       projectId: project.id,
     });
+  }
+
+  getParticipantStatus(participantId: string) {
+    return this.participants.find((participant) => participant.id === participantId)
+      ?.status;
   }
 
   private participants: Participant[] = [];
@@ -138,11 +147,91 @@ class InMemoryPrisma {
 
       return Promise.resolve(topic);
     }),
+    update: jest.fn(({ where, data }) => {
+      const index = this.topics.findIndex((topic) => topic.id === where.id);
+      this.topics[index] = {
+        ...this.topics[index],
+        ...data,
+        currentTurnIndex:
+          data.currentTurnIndex ?? this.topics[index].currentTurnIndex,
+        updatedAt: new Date(),
+      };
+
+      return Promise.resolve(this.topics[index]);
+    }),
   };
 
   readonly participant = {
-    findFirst: jest.fn(() => Promise.resolve(null)),
+    findFirst: jest.fn(({ where, orderBy, select } = {}) => {
+      const participant = this.participants
+        .filter(
+          (item) =>
+            (!where?.projectId || item.projectId === where.projectId) &&
+            (!where?.status?.in || where.status.in.includes(item.status)),
+        )
+        .sort((left, right) =>
+          orderBy?.joinOrder === 'asc'
+            ? left.joinOrder - right.joinOrder
+            : left.joinOrder - right.joinOrder,
+        )[0];
+
+      if (!participant) {
+        return Promise.resolve(null);
+      }
+
+      return Promise.resolve(
+        select
+          ? Object.fromEntries(
+              Object.keys(select).map((key) => [
+                key,
+                participant[key as keyof Participant],
+              ]),
+            )
+          : participant,
+      );
+    }),
+    updateMany: jest.fn(({ where, data }) => {
+      let count = 0;
+      this.participants = this.participants.map((participant) => {
+        if (
+          (!where.id || participant.id === where.id) &&
+          (!where.status || participant.status === where.status)
+        ) {
+          count += 1;
+          return { ...participant, ...data, updatedAt: new Date() };
+        }
+
+        return participant;
+      });
+
+      return Promise.resolve({ count });
+    }),
   };
+
+  readonly turn = {
+    create: jest.fn(({ data }) => {
+      const now = new Date();
+      const turn: Turn = {
+        id: `turn-${this.nextTurnId}`,
+        projectId: data.projectId,
+        topicId: data.topicId,
+        currentParticipantId: data.currentParticipantId,
+        turnIndex: data.turnIndex,
+        roundIndex: data.roundIndex,
+        phase: data.phase,
+        status: data.status,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      this.nextTurnId += 1;
+      this.turns.push(turn);
+
+      return Promise.resolve(turn);
+    }),
+  };
+
+  $transaction = jest.fn((callback) => callback(this));
 }
 
 describe('Project and topic REST API', () => {
@@ -217,6 +306,39 @@ describe('Project and topic REST API', () => {
       .expect(200);
 
     expect(project.body.topics).toHaveLength(1);
+  });
+
+  it('activates the first waiting participant when creating the initial turn', async () => {
+    await request(app.getHttpServer())
+      .post('/api/projects')
+      .send({ name: 'Activation Space' })
+      .expect(201);
+    const now = new Date('2026-05-18T00:00:00.000Z');
+
+    prisma.seedParticipant('activation-space', {
+      id: 'participant-1',
+      displayName: 'Member A',
+      anonymousName: 'Member A',
+      participantType: 'app',
+      providerName: null,
+      modelName: 'Model',
+      clientName: 'Client',
+      status: ParticipantStatus.waiting,
+      joinOrder: 1,
+      joinedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const topic = await request(app.getHttpServer())
+      .post('/api/projects/activation-space/topics')
+      .send({ title: 'Start with waiting participant' })
+      .expect(201);
+
+    expect(topic.body.currentTurnIndex).toBe(1);
+    expect(prisma.getParticipantStatus('participant-1')).toBe(
+      ParticipantStatus.active,
+    );
   });
 
   it('rejects invalid project and topic payloads', async () => {
