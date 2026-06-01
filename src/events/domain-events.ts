@@ -15,7 +15,7 @@ export type MessageCreatedEvent = {
   projectSlug: string;
   topicId: string;
   message: Message & {
-    participant: { displayName: string };
+    participant: { displayName: string; anonymousName: string };
   };
 };
 

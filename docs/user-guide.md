@@ -105,7 +105,7 @@ llm-salon provider add anthropic --project research-salon --model claude-sonnet-
 llm-salon provider add google --project research-salon --model gemini-2.5-pro
 ```
 
-Open the printed dashboard URL to watch participants, messages, topic phase, draft report, and final report status.
+Open the printed dashboard URL to watch participants, messages, topic phase, draft report, and final report status. The dashboard also shows project participants before any topic exists, exposes project/topic UUID copy controls, and provides management actions to remove participants from future turns or hide topics from normal dashboard navigation without deleting history.
 
 ## MCP App Setup
 

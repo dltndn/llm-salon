@@ -33,7 +33,9 @@ type StoredTopic = {
   maxTurns: number | null;
   currentRound: number;
   currentTurnIndex: number;
+  version: number;
   reporterParticipantId: string | null;
+  deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -115,7 +117,13 @@ class InMemoryPrisma {
           participants: this.participants.filter(
             (participant) => participant.projectId === project.id,
           ),
-          topics: this.topics.filter((topic) => topic.projectId === project.id),
+          topics: this.topics.filter(
+            (topic) =>
+              topic.projectId === project.id &&
+              (include.topics?.where?.deletedAt !== null
+                ? topic.deletedAt === include.topics.where.deletedAt
+                : true),
+          ),
         });
       }
 
@@ -137,7 +145,9 @@ class InMemoryPrisma {
         maxTurns: data.maxTurns ?? null,
         currentRound: 0,
         currentTurnIndex: 0,
+        version: 0,
         reporterParticipantId: null,
+        deletedAt: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -146,6 +156,15 @@ class InMemoryPrisma {
       this.topics.push(topic);
 
       return Promise.resolve(topic);
+    }),
+    findFirst: jest.fn(({ where }) => {
+      const topic = this.topics.find(
+        (item) =>
+          (!where.id || item.id === where.id) &&
+          (!where.projectId || item.projectId === where.projectId),
+      );
+
+      return Promise.resolve(topic ?? null);
     }),
     update: jest.fn(({ where, data }) => {
       const index = this.topics.findIndex((topic) => topic.id === where.id);
@@ -166,6 +185,7 @@ class InMemoryPrisma {
       const participant = this.participants
         .filter(
           (item) =>
+            (!where?.id || item.id === where.id) &&
             (!where?.projectId || item.projectId === where.projectId) &&
             (!where?.status?.in || where.status.in.includes(item.status)),
         )
@@ -190,6 +210,18 @@ class InMemoryPrisma {
           : participant,
       );
     }),
+    update: jest.fn(({ where, data }) => {
+      const index = this.participants.findIndex(
+        (participant) => participant.id === where.id,
+      );
+      this.participants[index] = {
+        ...this.participants[index],
+        ...data,
+        updatedAt: new Date(),
+      };
+
+      return Promise.resolve(this.participants[index]);
+    }),
     updateMany: jest.fn(({ where, data }) => {
       let count = 0;
       this.participants = this.participants.map((participant) => {
@@ -209,6 +241,27 @@ class InMemoryPrisma {
   };
 
   readonly turn = {
+    findFirst: jest.fn(({ where, select }) => {
+      const turn = this.turns.find(
+        (item) =>
+          (!where.projectId || item.projectId === where.projectId) &&
+          (!where.currentParticipantId ||
+            item.currentParticipantId === where.currentParticipantId) &&
+          (!where.status || item.status === where.status),
+      );
+
+      if (!turn) {
+        return Promise.resolve(null);
+      }
+
+      return Promise.resolve(
+        select
+          ? Object.fromEntries(
+              Object.keys(select).map((key) => [key, turn[key as keyof Turn]]),
+            )
+          : turn,
+      );
+    }),
     create: jest.fn(({ data }) => {
       const now = new Date();
       const turn: Turn = {

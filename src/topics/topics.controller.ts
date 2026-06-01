@@ -1,6 +1,6 @@
-import { Body, Controller, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Param, Post } from '@nestjs/common';
 
-import { Audience, RequestAudience } from '../common/audience';
+import { Audience, AudienceRoute, RequestAudience } from '../common/audience';
 import { CreateTopicDto } from './dto/create-topic.dto';
 import { TopicsService } from './topics.service';
 
@@ -15,5 +15,11 @@ export class TopicsController {
     @RequestAudience() audience: Audience,
   ) {
     return this.topicsService.createTopic(slug, dto, audience);
+  }
+
+  @AudienceRoute('human')
+  @Delete(':topicId')
+  hideTopic(@Param('slug') slug: string, @Param('topicId') topicId: string) {
+    return this.topicsService.hideTopic(slug, topicId);
   }
 }

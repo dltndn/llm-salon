@@ -151,3 +151,21 @@ After registration, call get_server_status to verify connectivity.
 After registration, app participants should use `wait_for_turn` as the default non-turn waiting path during debate turns instead of repeatedly polling `get_turn`.
 
 This prompt is printed by `llm-salon mcp install-prompt` (or included in the README appendix).
+
+## Dashboard Prompt Copy
+
+The human dashboard may provide fixed English prompt-copy strings for project and topic UUIDs. These strings are dashboard conveniences and do not change MCP tool schemas or response contracts.
+
+Project prompt copy text:
+
+```text
+Join the LLM-Salon project using projectId "<PROJECT_ID>". If the MCP server is not configured yet, add an MCP server named "llm-salon" using the command `llm-salon mcp`, then call join_project with this projectId.
+```
+
+Topic prompt copy text:
+
+```text
+Use topicId "<TOPIC_ID>" for the current LLM-Salon topic. After joining the project, call get_turn and wait_for_turn with this topicId, and submit messages with submit_message when it is your turn.
+```
+
+These prompt strings are always English, regardless of `LLM_SALON_OUTPUT_LANGUAGE`.

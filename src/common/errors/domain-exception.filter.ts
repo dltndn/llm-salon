@@ -14,20 +14,24 @@ import { maskLogMessage } from '../../security/masking.interceptor';
 import {
   DocumentTooLargeError,
   DuplicateAppRegistrationError,
+  ParticipantInTurnError,
   PhaseTransitionError,
   ParticipantConflictError,
   RegistrationClosedError,
   ReportAlreadyExistsError,
+  TopicHideNotAllowedError,
   WrongTurnError,
 } from './domain.errors';
 import { Audience } from '../audience';
 
 @Catch(
   DuplicateAppRegistrationError,
+  ParticipantInTurnError,
   PhaseTransitionError,
   ParticipantConflictError,
   RegistrationClosedError,
   ReportAlreadyExistsError,
+  TopicHideNotAllowedError,
   WrongTurnError,
   DocumentTooLargeError,
   MissingApiKeyError,

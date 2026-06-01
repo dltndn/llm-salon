@@ -1,8 +1,20 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Topic } from '@prisma/client';
+import { Topic, TopicPhase } from '@prisma/client';
 
+import {
+  projectMcpPrompt,
+  topicMcpPrompt,
+  uuidSnippet,
+} from '../common/mcp-prompt-copy';
 import { serializeProject } from '../projects/project.presenter';
 import { PrismaService } from '../prisma/prisma.service';
+import { VISIBLE_TOPIC_WHERE } from '../topics/visible-topics';
+
+const HIDABLE_TOPIC_PHASES: TopicPhase[] = [
+  TopicPhase.preparing,
+  TopicPhase.finalized,
+  TopicPhase.closed,
+];
 
 export type ProjectListViewModel = {
   projects: Array<{
@@ -27,6 +39,7 @@ export type DashboardViewModel = {
   messages: Array<{
     id: string;
     displayName: string;
+    anonymousName: string;
     content: string;
     phase: string;
     turnIndex: number;
@@ -50,6 +63,19 @@ export type DashboardViewModel = {
     finalContent: string | null;
     filePath: string | null;
   } | null;
+  uuidCopy: {
+    project: {
+      id: string;
+      snippet: string;
+      mcpPrompt: string;
+    };
+    topic: {
+      id: string;
+      snippet: string;
+      mcpPrompt: string;
+    } | null;
+  };
+  canHideSelectedTopic: boolean;
 };
 
 @Injectable()
@@ -93,6 +119,7 @@ export class ViewsService {
           orderBy: { joinOrder: 'asc' },
         },
         topics: {
+          where: VISIBLE_TOPIC_WHERE,
           orderBy: { createdAt: 'asc' },
         },
       },
@@ -107,19 +134,38 @@ export class ViewsService {
       project.topics[0] ??
       null;
 
+    const participants = project.participants.map((participant) => ({
+      id: participant.id,
+      displayName: participant.displayName,
+      status: participant.status,
+    }));
+
+    const uuidCopy = {
+      project: {
+        id: project.id,
+        snippet: uuidSnippet(project.id),
+        mcpPrompt: projectMcpPrompt(project.id),
+      },
+      topic: selectedTopic
+        ? {
+            id: selectedTopic.id,
+            snippet: uuidSnippet(selectedTopic.id),
+            mcpPrompt: topicMcpPrompt(selectedTopic.id),
+          }
+        : null,
+    };
+
     if (!selectedTopic) {
       return {
         project: serializeProject(project, 'human'),
         selectedTopic: null,
-        participants: project.participants.map((participant) => ({
-          id: participant.id,
-          displayName: participant.displayName,
-          status: participant.status,
-        })),
+        participants,
         messages: [],
         currentTurn: null,
         documents: [],
         report: null,
+        uuidCopy,
+        canHideSelectedTopic: false,
       };
     }
 
@@ -129,7 +175,7 @@ export class ViewsService {
         orderBy: { createdAt: 'asc' },
         include: {
           participant: {
-            select: { displayName: true },
+            select: { displayName: true, anonymousName: true },
           },
         },
       }),
@@ -166,14 +212,11 @@ export class ViewsService {
     return {
       project: serializeProject(project, 'human'),
       selectedTopic,
-      participants: project.participants.map((participant) => ({
-        id: participant.id,
-        displayName: participant.displayName,
-        status: participant.status,
-      })),
+      participants,
       messages: messages.map((message) => ({
         id: message.id,
         displayName: message.participant.displayName,
+        anonymousName: message.participant.anonymousName,
         content: message.content,
         phase: message.phase,
         turnIndex: message.turnIndex,
@@ -189,6 +232,8 @@ export class ViewsService {
         : null,
       documents,
       report,
+      uuidCopy,
+      canHideSelectedTopic: HIDABLE_TOPIC_PHASES.includes(selectedTopic.phase),
     };
   }
 }

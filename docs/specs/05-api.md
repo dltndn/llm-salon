@@ -20,6 +20,8 @@ All REST routes are prefixed `/api/`. They serve as the internal interface for C
 
 All REST responses select `HumanDto` or `AnonymousDto` based on the `?audience=human|anonymous` query param or the calling context (MCP always forces `anonymous`).
 
+Default project-detail responses exclude hidden topics (`topics.deleted_at IS NOT NULL`). No public include-hidden query mode is defined.
+
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/api/projects` | Create a project |
@@ -27,6 +29,8 @@ All REST responses select `HumanDto` or `AnonymousDto` based on the `?audience=h
 | `GET` | `/api/projects/:slug` | Get project detail |
 | `POST` | `/api/projects/:slug/topics` | Create a topic |
 | `POST` | `/api/projects/:slug/participants` | Register a participant |
+| `DELETE` | `/api/projects/:slug/participants/:participantId` | Remove a participant from future participation (`status = removed`) |
+| `DELETE` | `/api/projects/:slug/topics/:topicId` | Hide a topic from normal human-facing flows (`deleted_at`) |
 | `POST` | `/api/projects/:slug/topics/:topicId/messages` | Submit a message |
 | `GET` | `/api/projects/:slug/topics/:topicId/context` | Get LLM context payload (`?audience=human\|anonymous`) |
 | `GET` | `/api/projects/:slug/topics/:topicId/turn` | Get current turn (`?participantId=…`) |
@@ -37,7 +41,53 @@ All REST responses select `HumanDto` or `AnonymousDto` based on the `?audience=h
 
 ---
 
-## Long-Poll Wait Endpoint
+## REST Endpoint Details
+
+### `GET /api/projects/:slug`
+
+Purpose: return project detail for human clients, CLI delegation, and MCP proxying.
+
+Behavior:
+
+- Topics are ordered by `created_at ASC`.
+- Hidden topics are excluded from the default `topics` list.
+- Participants are not filtered by topic visibility.
+
+### `DELETE /api/projects/:slug/participants/:participantId`
+
+Purpose: remove a participant from future participation without deleting history.
+
+Behavior:
+
+- Sets `participant.status = removed`.
+- Preserves the participant row and all related messages, turns, reports, documents, and anonymous-name history.
+- Rejects removal when the participant currently holds an `in_progress` turn in the project.
+- Removed participants remain visible in the dashboard participant list with status `removed`.
+
+Response:
+
+- `200 OK` with the human participant payload.
+- `404 Not Found` when the project or participant is not found in that project.
+- `409 Conflict` when the participant is the current in-progress turn holder.
+
+### `DELETE /api/projects/:slug/topics/:topicId`
+
+Purpose: hide a topic from normal human-facing flows without deleting history.
+
+Behavior:
+
+- Sets `topics.deleted_at` to the current timestamp.
+- The operation is idempotent for an already hidden topic.
+- Preserves messages, turns, documents, and reports.
+- Allows hiding only when the topic phase is `preparing`, `finalized`, or `closed`.
+- Rejects hiding when the topic phase is `debating`, `drafting`, `reviewing`, or `finalizing`.
+- Hidden topics are excluded from dashboard topic tabs, default dashboard selected-topic resolution, and default project-detail topic lists.
+
+Response:
+
+- `200 OK` with the human topic payload, including `deletedAt`.
+- `404 Not Found` when the project or topic is not found in that project.
+- `409 Conflict` when the topic phase does not allow hiding.
 
 ### `POST /api/projects/:slug/topics/:topicId/messages`
 
@@ -147,7 +197,7 @@ Client expectation:
 
 | Event | Payload summary |
 |---|---|
-| `message.created` | `{ projectId, topicId, message: { id, displayName, content, phase, turnIndex, createdAt } }` |
+| `message.created` | `{ projectId, topicId, message: { id, displayName, anonymousName, content, phase, turnIndex, createdAt } }` |
 | `turn.changed` | `{ projectId, topicId, currentParticipant: { id, displayName }, turnIndex, roundIndex }` |
 | `participant.joined` | `{ projectId, participant: { id, displayName, status } }` |
 | `topic.phase_changed` | `{ projectId, topicId, phase }` |
@@ -164,11 +214,30 @@ Client expectation:
 
 ### Project Dashboard (`/projects/:slug`)
 
-- **Header:** project name, selected topic name, phase badge, SSE connection indicator.
-- **Topic selector:** tab or dropdown in the header; selected topic reflected in `?topic=<topicId>`.
-- **Left panel:** participant list (`display_name`, status, current-turn highlight).
-- **Right main area:** message bubbles (chronological, auto-scroll on new message).
+- **Header:** project name, project UUID snippet, selected topic name, selected topic UUID snippet, phase badge, SSE connection indicator.
+- **Topic selector:** tab or dropdown in the header; selected topic reflected in `?topic=<topicId>`. Hidden topics are excluded.
+- **Project participant section:** always visible, even when the project has no topics. Shows `display_name`, status, current-turn highlight, and participant removal affordance.
+- **Right main area:** message bubbles (chronological, auto-scroll on new message). Message headers show `displayName` followed by the participant's anonymous label in parentheses, for example `Codex / GPT-5 (Member A)`.
 - **Bottom/tabs:** attached document list, report area (draft + final).
+- **UUID copy affordances:** each visible UUID snippet provides copy raw UUID and copy fixed English MCP prompt actions.
+
+UUID snippets use the first 4 characters, an ellipsis, and the last 4 characters.
+
+Project prompt copy text:
+
+```text
+Join the LLM-Salon project using projectId "<PROJECT_ID>". If the MCP server is not configured yet, add an MCP server named "llm-salon" using the command `llm-salon mcp`, then call join_project with this projectId.
+```
+
+Topic prompt copy text:
+
+```text
+Use topicId "<TOPIC_ID>" for the current LLM-Salon topic. After joining the project, call get_turn and wait_for_turn with this topicId, and submit messages with submit_message when it is your turn.
+```
+
+The copied prompt text is always English, regardless of `LLM_SALON_OUTPUT_LANGUAGE`.
+
+When no visible topic exists, the dashboard still renders the header and project participant section. Topic-specific panels render an empty state and browser SSE remains idle until a visible topic is selected.
 
 ### Responsive Scope
 

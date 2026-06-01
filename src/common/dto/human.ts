@@ -40,6 +40,7 @@ export interface TopicHumanDto extends HumanDto {
   currentTurnIndex: number;
   version: number;
   reporterParticipantId: string | null;
+  deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

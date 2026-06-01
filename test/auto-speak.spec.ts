@@ -71,6 +71,7 @@ class InMemoryAutoSpeakPrisma {
     currentTurnIndex: 1,
     version: 0,
     reporterParticipantId: null,
+    deletedAt: null,
     createdAt: now,
     updatedAt: now,
   };

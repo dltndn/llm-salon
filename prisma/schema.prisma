@@ -120,6 +120,7 @@ model Topic {
   currentTurnIndex      Int          @default(0) @map("current_turn_index")
   version               Int          @default(0)
   reporterParticipantId String?      @map("reporter_participant_id") @db.Uuid
+  deletedAt             DateTime?      @map("deleted_at") @db.Timestamptz(6)
   createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   project               Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -129,6 +130,7 @@ model Topic {
   turns                 Turn[]
   reports               Report[]
 
+  @@index([projectId, deletedAt, createdAt])
   @@map("topics")
 }
 

@@ -6,8 +6,10 @@ import {
   DuplicateAppRegistrationError,
   PhaseTransitionError,
   ParticipantConflictError,
+  ParticipantInTurnError,
   RegistrationClosedError,
   ReportAlreadyExistsError,
+  TopicHideNotAllowedError,
   WrongTurnError,
 } from './domain.errors';
 import { MissingApiKeyError, ProviderCallFailedError } from '../../llm/llm.errors';
@@ -20,6 +22,8 @@ describe('DomainExceptionFilter', () => {
     [new WrongTurnError('Member A'), HttpStatus.CONFLICT],
     [new PhaseTransitionError('preparing', 'finalized'), HttpStatus.CONFLICT],
     [new ReportAlreadyExistsError('topic-1'), HttpStatus.CONFLICT],
+    [new TopicHideNotAllowedError('debating'), HttpStatus.CONFLICT],
+    [new ParticipantInTurnError(), HttpStatus.CONFLICT],
     [new DocumentTooLargeError('low', '64 KB'), HttpStatus.PAYLOAD_TOO_LARGE],
     [new MissingApiKeyError('OPENAI_API_KEY'), HttpStatus.BAD_REQUEST],
     [

@@ -90,6 +90,14 @@ All ENUMs are defined as PostgreSQL ENUM types and mapped in Prisma.
 - When the system creates a participant's first assigned `turn` row and that participant is still `waiting`, the participant is promoted to `active` in the same DB transaction.
 - The automatic promotion is one-way. Participants do not move back from `active` to `waiting`; `inactive` or `removed` are used when participation must stop.
 
+### Participant Removal
+
+- Human-facing participant removal is a lifecycle transition to `status = removed`.
+- Removal never deletes participant rows, messages, turns, reports, documents, or anonymous-name history.
+- Removed participants are excluded from future turn-taking and active-only rules under the same semantics as other `removed` participants.
+- Removed participants remain counted for anonymous-name non-reuse and uniqueness history.
+- The current `in_progress` turn holder cannot be removed. The request must be rejected with `409 Conflict`.
+
 ### Topic Phase State Machine
 
 All transitions are performed automatically by the system (no manual `force_*` triggers in MVP).
@@ -106,6 +114,14 @@ finalized ──[user explicitly closes]─────────────�
 ```
 
 Forbidden transitions (any other path) must raise `PhaseTransitionError`.
+
+### Topic Visibility
+
+- A topic with `deleted_at IS NOT NULL` is hidden from normal human-facing dashboard and default project-detail flows.
+- Hidden topics preserve all stored records, including messages, turns, documents, and reports.
+- Topic hiding is allowed only when `phase` is `preparing`, `finalized`, or `closed`.
+- Topic hiding is rejected when `phase` is `debating`, `drafting`, `reviewing`, or `finalizing`.
+- Topic hiding is a visibility change, not a topic phase transition, and it does not add a dashboard restore path.
 
 ### Consensus Early Stop
 

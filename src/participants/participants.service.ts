@@ -9,12 +9,14 @@ import {
   Prisma,
   Project,
   TopicPhase,
+  TurnStatus,
 } from '@prisma/client';
 
 import { Audience } from '../common/audience';
 import {
   DuplicateAppRegistrationError,
   ParticipantConflictError,
+  ParticipantInTurnError,
   RegistrationClosedError,
 } from '../common/errors/domain.errors';
 import { DOMAIN_EVENT, DomainEvent } from '../events/domain-events';
@@ -23,7 +25,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ProviderKeyService } from '../security/provider-key.service';
 import { anonymousNameForJoinOrder } from './anonymous-name';
 import { RegisterParticipantDto } from './dto/register-participant.dto';
-import { serializeRegisteredParticipant } from './participant.presenter';
+import {
+  serializeParticipant,
+  serializeRegisteredParticipant,
+} from './participant.presenter';
 
 type ParticipantTransaction = Prisma.TransactionClient;
 
@@ -96,6 +101,62 @@ export class ParticipantsService {
     }
 
     return serializeRegisteredParticipant(participant, audience);
+  }
+
+  async removeParticipant(projectSlug: string, participantId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const project = await tx.project.findUnique({
+        where: { slug: projectSlug },
+        select: { id: true },
+      });
+
+      if (!project) {
+        throw new NotFoundException(`Project not found: ${projectSlug}`);
+      }
+
+      await tx.$queryRaw`
+        SELECT id FROM projects WHERE id = ${project.id}::uuid FOR UPDATE
+      `;
+
+      const participant = await tx.participant.findFirst({
+        where: {
+          id: participantId,
+          projectId: project.id,
+        },
+      });
+
+      if (!participant) {
+        throw new NotFoundException(`Participant not found: ${participantId}`);
+      }
+
+      if (participant.status === ParticipantStatus.removed) {
+        return serializeParticipant(participant, 'human');
+      }
+
+      await tx.$queryRaw`
+        SELECT id FROM participants WHERE id = ${participant.id}::uuid FOR UPDATE
+      `;
+
+      const inProgressTurn = await tx.turn.findFirst({
+        where: {
+          projectId: project.id,
+          currentParticipantId: participant.id,
+          status: TurnStatus.in_progress,
+        },
+        select: { id: true },
+      });
+
+      if (inProgressTurn) {
+        throw new ParticipantInTurnError();
+      }
+
+      const removed = await tx.participant.update({
+        where: { id: participant.id },
+        data: { status: ParticipantStatus.removed },
+      });
+
+      return serializeParticipant(removed, 'human');
+    });
   }
 
   private async findProjectForRegistration(

@@ -13,6 +13,34 @@
           <span class="header-topic">Topic: <%= selectedTopic.title %></span>
         <% } %>
       </p>
+      <div class="uuid-copy-row" aria-label="Project identifier">
+        <span class="uuid-snippet" title="<%= uuidCopy.project.id %>"><%= uuidCopy.project.snippet %></span>
+        <button
+          type="button"
+          class="copy-btn"
+          data-copy-text="<%= uuidCopy.project.id %>"
+        >Copy UUID</button>
+        <button
+          type="button"
+          class="copy-btn"
+          data-copy-text="<%= uuidCopy.project.mcpPrompt %>"
+        >Copy MCP prompt</button>
+      </div>
+      <% if (uuidCopy.topic) { %>
+        <div class="uuid-copy-row" aria-label="Topic identifier">
+          <span class="uuid-snippet" title="<%= uuidCopy.topic.id %>"><%= uuidCopy.topic.snippet %></span>
+          <button
+            type="button"
+            class="copy-btn"
+            data-copy-text="<%= uuidCopy.topic.id %>"
+          >Copy UUID</button>
+          <button
+            type="button"
+            class="copy-btn"
+            data-copy-text="<%= uuidCopy.topic.mcpPrompt %>"
+          >Copy MCP prompt</button>
+        </div>
+      <% } %>
     </div>
     <div class="header-status">
       <span
@@ -22,6 +50,13 @@
       >Connecting</span>
       <% if (selectedTopic) { %>
         <span id="phase-badge" class="phase-badge"><%= selectedTopic.phase %></span>
+        <% if (canHideSelectedTopic) { %>
+          <button
+            type="button"
+            class="mgmt-btn hide-topic-btn"
+            data-hide-topic-url="/api/projects/<%= project.slug %>/topics/<%= selectedTopic.id %>"
+          >Hide topic</button>
+        <% } %>
       <% } %>
     </div>
   </header>
@@ -40,6 +75,31 @@
     </nav>
   <% } %>
 
+  <section class="panel participant-panel project-participant-panel" aria-labelledby="participants-heading">
+    <div class="section-heading">
+      <h2 id="participants-heading">Participants</h2>
+      <span><%= participants.length %></span>
+    </div>
+    <ol id="participant-list" class="participant-list">
+      <% for (const participant of participants) { %>
+        <li
+          class="participant-row <%= currentTurn && currentTurn.participantId === participant.id ? 'is-current' : '' %>"
+          data-participant-id="<%= participant.id %>"
+        >
+          <span class="participant-name"><%= participant.displayName %></span>
+          <span class="participant-status"><%= participant.status %></span>
+          <% if (participant.status !== 'removed') { %>
+            <button
+              type="button"
+              class="mgmt-btn remove-participant-btn"
+              data-remove-participant-url="/api/projects/<%= project.slug %>/participants/<%= participant.id %>"
+            >Remove</button>
+          <% } %>
+        </li>
+      <% } %>
+    </ol>
+  </section>
+
   <% if (!selectedTopic) { %>
     <section class="empty-state dashboard-empty">
       <strong>No topics yet.</strong>
@@ -47,24 +107,6 @@
     </section>
   <% } else { %>
     <section class="dashboard-grid">
-      <aside class="panel participant-panel" aria-labelledby="participants-heading">
-        <div class="section-heading">
-          <h2 id="participants-heading">Participants</h2>
-          <span><%= participants.length %></span>
-        </div>
-        <ol id="participant-list" class="participant-list">
-          <% for (const participant of participants) { %>
-            <li
-              class="participant-row <%= currentTurn && currentTurn.participantId === participant.id ? 'is-current' : '' %>"
-              data-participant-id="<%= participant.id %>"
-            >
-              <span class="participant-name"><%= participant.displayName %></span>
-              <span class="participant-status"><%= participant.status %></span>
-            </li>
-          <% } %>
-        </ol>
-      </aside>
-
       <section class="panel message-panel" aria-labelledby="messages-heading">
         <div class="section-heading message-heading">
           <div>
@@ -93,7 +135,7 @@
           <% for (const message of messages) { %>
             <article class="message-card" data-message-id="<%= message.id %>">
               <header>
-                <strong><%= message.displayName %></strong>
+                <strong><%= message.displayName %> (<%= message.anonymousName %>)</strong>
                 <span>Turn <%= message.turnIndex %> / <%= message.phase %></span>
               </header>
               <p><%= message.content %></p>

@@ -4,6 +4,7 @@ import { Prisma, ProjectStatus } from '@prisma/client';
 import { Audience } from '../common/audience';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProjectDto } from './dto/create-project.dto';
+import { VISIBLE_TOPIC_WHERE } from '../topics/visible-topics';
 import { serializeProject } from './project.presenter';
 import { slugifyProjectName } from './slug';
 
@@ -56,6 +57,7 @@ export class ProjectsService {
           orderBy: { joinOrder: 'asc' },
         },
         topics: {
+          where: VISIBLE_TOPIC_WHERE,
           orderBy: { createdAt: 'asc' },
         },
       },

@@ -116,7 +116,7 @@ describe('Turn wait REST API', () => {
   it('wakes when consensus readiness advances the topic to drafting', async () => {
     const { topicId, participantAId, participantBId } =
       await createProjectWithTopic(app);
-    const providerId = 'provider-ready';
+    const providerId = '55555555-5555-4555-8555-555555555555';
 
     prisma.seedParticipant('wait-project', {
       id: providerId,
@@ -147,6 +147,10 @@ describe('Turn wait REST API', () => {
     await submitMessage(app, topicId, participantBId, 'Ready from B', {
       debateSignal: 'ready_to_finalize',
     });
+    await submitMessage(app, topicId, providerId, 'Ready from C', {
+      debateSignal: 'ready_to_finalize',
+    });
+
     const beforeWait = await request(app.getHttpServer())
       .get(`/api/projects/wait-project/topics/${topicId}/turn`)
       .query({ participantId: participantBId, audience: 'anonymous' })

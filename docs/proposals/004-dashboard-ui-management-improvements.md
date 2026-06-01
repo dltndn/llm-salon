@@ -1,8 +1,9 @@
 # Proposal 004: Dashboard UI Management Improvements
 
-Status: Draft
+Status: Accepted
 Owner: Codex
 Created: 2026-05-28
+Accepted: 2026-06-01
 Related analysis:
 - Local documentation and implementation review on 2026-05-28 covering dashboard SSR flow, participant visibility, topic visibility, anonymized naming, and project/topic management affordances
 
@@ -13,11 +14,11 @@ Related specs:
 - `docs/specs/06-mcp.md`
 - `docs/specs/10-testing.md`
 
-Planned decision:
+Decision:
 - `docs/decisions/ADR-004-dashboard-ui-management-improvements.md`
 
 Planned worklog:
-- `docs/worklogs/2026-05-28-dashboard-ui-management-improvements.md`
+- `docs/worklogs/2026-06-01-dashboard-ui-management-improvements.md`
 
 ## Summary
 
@@ -117,6 +118,20 @@ Prompt types are intentionally separate:
 The copied prompts must be English-only regardless of `LLM_SALON_OUTPUT_LANGUAGE`.
 
 The proposal does not require these prompts to become CLI output or new MCP tools. They are dashboard convenience strings built from existing MCP workflow expectations.
+
+Accepted prompt text:
+
+- Project prompt:
+
+```text
+Join the LLM-Salon project using projectId "<PROJECT_ID>". If the MCP server is not configured yet, add an MCP server named "llm-salon" using the command `llm-salon mcp`, then call join_project with this projectId.
+```
+
+- Topic prompt:
+
+```text
+Use topicId "<TOPIC_ID>" for the current LLM-Salon topic. After joining the project, call get_turn and wait_for_turn with this topicId, and submit messages with submit_message when it is your turn.
+```
 
 ### 4. Participant removal uses the existing `removed` lifecycle
 
@@ -328,3 +343,4 @@ Before this proposal is reflected in live specs, the following should be true:
 ## Status History
 
 - 2026-05-28: Draft created for dashboard UI and management improvements spanning participant visibility, identity labeling, UUID copy affordances, participant removal, and topic soft-hiding.
+- 2026-06-01: Accepted with fixed English MCP prompt-copy strings and REST management endpoints to be reflected in specs.

@@ -34,6 +34,7 @@ type StoredTopic = {
   currentTurnIndex: number;
   version: number;
   reporterParticipantId: string | null;
+  deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -183,6 +184,7 @@ export class InMemoryPrisma {
         currentTurnIndex: 0,
         version: data.version ?? 0,
         reporterParticipantId: null,
+        deletedAt: null,
         createdAt: now,
         updatedAt: now,
       };

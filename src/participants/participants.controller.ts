@@ -1,6 +1,6 @@
-import { Body, Controller, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Param, Post } from '@nestjs/common';
 
-import { Audience, RequestAudience } from '../common/audience';
+import { Audience, AudienceRoute, RequestAudience } from '../common/audience';
 import { RegisterParticipantDto } from './dto/register-participant.dto';
 import { ParticipantsService } from './participants.service';
 
@@ -15,5 +15,14 @@ export class ParticipantsController {
     @RequestAudience() audience: Audience,
   ) {
     return this.participantsService.registerParticipant(slug, dto, audience);
+  }
+
+  @AudienceRoute('human')
+  @Delete(':participantId')
+  removeParticipant(
+    @Param('slug') slug: string,
+    @Param('participantId') participantId: string,
+  ) {
+    return this.participantsService.removeParticipant(slug, participantId);
   }
 }

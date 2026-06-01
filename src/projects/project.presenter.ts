@@ -1,36 +1,14 @@
 import { Participant, Project, Topic } from '@prisma/client';
 
 import { Audience } from '../common/audience';
-import {
-  ProjectAnonymousDto,
-  ProjectHumanDto,
-  TopicAnonymousDto,
-  TopicHumanDto,
-} from '../common/dto';
+import { ProjectAnonymousDto, ProjectHumanDto } from '../common/dto';
 import { serializeParticipant } from '../participants/participant.presenter';
+import { serializeTopic } from '../topics/topic.presenter';
 
 type ProjectWithRelations = Project & {
   participants?: Participant[];
   topics?: Topic[];
 };
-
-function serializeTopic(topic: Topic): TopicHumanDto | TopicAnonymousDto {
-  return {
-    id: topic.id,
-    projectId: topic.projectId,
-    title: topic.title,
-    description: topic.description,
-    mode: topic.mode,
-    phase: topic.phase,
-    maxRounds: topic.maxRounds,
-    maxTurns: topic.maxTurns,
-    currentRound: topic.currentRound,
-    currentTurnIndex: topic.currentTurnIndex,
-    reporterParticipantId: topic.reporterParticipantId,
-    createdAt: topic.createdAt,
-    updatedAt: topic.updatedAt,
-  } as TopicHumanDto | TopicAnonymousDto;
-}
 
 export function serializeProject(
   project: ProjectWithRelations,
@@ -43,7 +21,7 @@ export function serializeProject(
     status: project.status,
     createdAt: project.createdAt,
     updatedAt: project.updatedAt,
-    topics: project.topics?.map(serializeTopic),
+    topics: project.topics?.map((topic) => serializeTopic(topic, audience)),
     participants: project.participants?.map((participant) =>
       serializeParticipant(participant, audience),
     ),

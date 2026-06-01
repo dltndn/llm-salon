@@ -7,7 +7,7 @@ export function serializeTopic(
   topic: Topic,
   audience: Audience = 'human',
 ): TopicHumanDto | TopicAnonymousDto {
-  const serialized = {
+  const base = {
     id: topic.id,
     projectId: topic.projectId,
     title: topic.title,
@@ -18,12 +18,13 @@ export function serializeTopic(
     maxTurns: topic.maxTurns,
     currentRound: topic.currentRound,
     currentTurnIndex: topic.currentTurnIndex,
+    version: topic.version,
     reporterParticipantId: topic.reporterParticipantId,
     createdAt: topic.createdAt,
     updatedAt: topic.updatedAt,
   };
 
   return audience === 'anonymous'
-    ? (serialized as TopicAnonymousDto)
-    : (serialized as TopicHumanDto);
+    ? (base as TopicAnonymousDto)
+    : ({ ...base, deletedAt: topic.deletedAt } as TopicHumanDto);
 }

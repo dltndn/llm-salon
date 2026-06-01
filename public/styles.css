@@ -216,8 +216,10 @@ h1 {
 
 .header-status {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .back-link {
@@ -252,11 +254,53 @@ h1 {
   opacity: 0.72;
 }
 
+.project-participant-panel {
+  margin-top: 18px;
+}
+
+.uuid-copy-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.uuid-snippet {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.copy-btn,
+.mgmt-btn {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #fffaf0;
+  color: var(--ink);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.copy-btn:hover,
+.mgmt-btn:hover {
+  border-color: var(--clay);
+}
+
+.participant-row .mgmt-btn {
+  justify-self: start;
+}
+
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr) 280px;
   gap: 18px;
   min-height: 650px;
+  margin-top: 18px;
 }
 
 .panel {

@@ -10,6 +10,7 @@ import type {
   TopicAnonymousDto,
 } from '../common/dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { serializeTopic } from '../topics/topic.presenter';
 import { DocumentsService } from '../documents/documents.service';
 import { ContextBuilderService } from './context-builder.service';
 import type { ContextBuilderInput } from './context-builder.service';
@@ -92,7 +93,7 @@ export class ContextPayloadService {
           topics: undefined,
           participants: undefined,
         } as ProjectAnonymousDto,
-        topic: topic as TopicAnonymousDto,
+        topic: serializeTopic(topic, 'anonymous') as TopicAnonymousDto,
         currentSpeaker: { anonymousName: caller.anonymousName },
         caller: { anonymousName: caller.anonymousName },
         participants: participants.map((participant) => ({

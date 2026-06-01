@@ -197,6 +197,7 @@ class InMemorySseMessagesPrisma {
     currentTurnIndex: 1,
     version: 0,
     reporterParticipantId: null,
+    deletedAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -345,7 +346,7 @@ class InMemorySseMessagesPrisma {
           '0',
         )}`,
         createdAt: now,
-        participant: { displayName: 'Display A' },
+        participant: { displayName: 'Display A', anonymousName: 'Member A' },
         ...data,
       });
     }),
@@ -476,7 +477,7 @@ function emitMessageCreated(events: DomainEventBus, content: string): void {
         content,
         debateSignal: DebateSignal.Continue,
         createdAt: new Date('2026-05-18T00:00:00.000Z'),
-        participant: { displayName: 'Display A' },
+        participant: { displayName: 'Display A', anonymousName: 'Member A' },
       },
     },
   });

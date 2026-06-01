@@ -87,7 +87,7 @@ export class MessagesService {
         },
         include: {
           participant: {
-            select: { displayName: true },
+            select: { displayName: true, anonymousName: true },
           },
         },
       });
@@ -432,7 +432,7 @@ export class MessagesService {
       },
       include: {
         participant: {
-          select: { displayName: true },
+          select: { displayName: true, anonymousName: true },
         },
       },
     });

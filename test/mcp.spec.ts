@@ -421,7 +421,7 @@ describe('MCP stdio server', () => {
       title: 'Reach consensus',
       mode: 'consensus',
     });
-    const providerId = 'provider-ready';
+    const providerId = '55555555-5555-4555-8555-555555555555';
     prisma.seedParticipant(project.slug, {
       id: providerId,
       displayName: 'Provider',
@@ -471,11 +471,27 @@ describe('MCP stdio server', () => {
       phaseAfter: 'debating',
     });
     expect(secondSubmit).toMatchObject({
-      nextMember: 'Member A',
+      nextMember: 'Member C',
       phaseAfter: 'debating',
     });
 
     const thirdSubmit = await callTool<{
+      phaseAfter: string;
+      nextMember: string | null;
+    }>(child, 'submit_message', {
+      projectId: project.projectId,
+      topicId: topic.topicId,
+      participantId: providerId,
+      content: 'C is ready.',
+      debateSignal: 'ready_to_finalize',
+    });
+
+    expect(thirdSubmit).toMatchObject({
+      nextMember: 'Member A',
+      phaseAfter: 'debating',
+    });
+
+    const fourthSubmit = await callTool<{
       phaseAfter: string;
       nextMember: string | null;
     }>(child, 'submit_message', {
@@ -486,7 +502,7 @@ describe('MCP stdio server', () => {
       debateSignal: 'ready_to_finalize',
     });
 
-    expect(thirdSubmit).toMatchObject({
+    expect(fourthSubmit).toMatchObject({
       nextMember: null,
       phaseAfter: 'drafting',
     });

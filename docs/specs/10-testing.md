@@ -75,6 +75,14 @@ These specific scenarios must have permanent test coverage:
 | `submit_message` with unanimous consensus readiness | Returns `{ nextMember: null, phaseAfter: "drafting" }` |
 | `submit_message` with a current-round waiting participant | Returns the waiting participant as `nextMember` and promotes them to `active` before consensus early stop can complete |
 | Document upload exceeding profile limit | Returns `413` with descriptive message |
+| Dashboard message history | Shows `displayName` plus anonymous label in message headers only |
+| Dashboard with no topics | Still shows the project-level participant section |
+| Dashboard UUID copy controls | Copy raw UUID and the fixed English MCP prompt for project and selected topic UUIDs |
+| Participant removal | Sets status to `removed` and preserves existing message/turn/report history |
+| Participant removal for current turn holder | Returns `409 Conflict` and leaves status unchanged |
+| Hidden topic filtering | Excludes `deleted_at` topics from dashboard tabs, default selected-topic resolution, and default project-detail topic lists |
+| Topic hiding in allowed phases | Sets `deleted_at` for `preparing`, `finalized`, and `closed` topics |
+| Topic hiding in active phases | Returns `409 Conflict` for `debating`, `drafting`, `reviewing`, and `finalizing` topics |
 
 ---
 

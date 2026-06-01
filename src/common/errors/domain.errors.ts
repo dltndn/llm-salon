@@ -46,6 +46,20 @@ export class ReportAlreadyExistsError extends Error {
   }
 }
 
+export class TopicHideNotAllowedError extends Error {
+  constructor(phase: string) {
+    super(`Topic cannot be hidden while phase is ${phase}`);
+    this.name = 'TopicHideNotAllowedError';
+  }
+}
+
+export class ParticipantInTurnError extends Error {
+  constructor() {
+    super('Cannot remove the participant who currently holds an in-progress turn');
+    this.name = 'ParticipantInTurnError';
+  }
+}
+
 export class DocumentTooLargeError extends Error {
   constructor(profile: string, limit: string) {
     super(

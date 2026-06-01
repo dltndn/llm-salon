@@ -43,6 +43,7 @@ import { SummaryParticipant } from '../prompt/summarizer.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { maskLogMessage } from '../security/masking.interceptor';
 import { TurnEngineService } from '../turns/turn-engine.service';
+import { serializeTopic } from '../topics/topic.presenter';
 
 type ProviderTurn = Turn & {
   currentParticipant: Participant;
@@ -414,7 +415,7 @@ function toContextBuilderInput(input: {
 }): ContextBuilderInput {
   return {
     project: input.project as ProjectAnonymousDto,
-    topic: input.topic as TopicAnonymousDto,
+    topic: serializeTopic(input.topic, 'anonymous') as TopicAnonymousDto,
     currentSpeaker: { anonymousName: input.caller.anonymousName },
     caller: { anonymousName: input.caller.anonymousName },
     participants: input.participants.map((participant) => ({

@@ -18,6 +18,24 @@
     ),
   );
 
+  for (const button of document.querySelectorAll('[data-copy-text]')) {
+    button.addEventListener('click', function () {
+      copyText(button.dataset.copyText);
+    });
+  }
+
+  for (const button of document.querySelectorAll('[data-remove-participant-url]')) {
+    button.addEventListener('click', function () {
+      void runDelete(button.dataset.removeParticipantUrl);
+    });
+  }
+
+  for (const button of document.querySelectorAll('[data-hide-topic-url]')) {
+    button.addEventListener('click', function () {
+      void runDelete(button.dataset.hideTopicUrl);
+    });
+  }
+
   if (!projectSlug || !selectedTopicId) {
     setConnectionState('idle', 'No topic');
     return;
@@ -84,7 +102,10 @@
     const meta = document.createElement('span');
     const content = document.createElement('p');
 
-    speaker.textContent = message.displayName;
+    const anonymousName = message.anonymousName || '';
+    speaker.textContent = anonymousName
+      ? `${message.displayName} (${anonymousName})`
+      : message.displayName;
     meta.textContent = `Turn ${message.turnIndex} / ${message.phase}`;
     content.textContent = message.content;
 
@@ -133,5 +154,41 @@
     } catch {
       return null;
     }
+  }
+
+  async function runDelete(url) {
+    if (!url || !window.confirm('Apply this change?')) {
+      return;
+    }
+
+    const response = await fetch(url, { method: 'DELETE' });
+
+    if (response.ok) {
+      window.location.reload();
+      return;
+    }
+
+    window.alert('Request failed. The page was not changed.');
+  }
+
+  function copyText(text) {
+    if (!text) {
+      return;
+    }
+
+    if (navigator.clipboard?.writeText) {
+      void navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'absolute';
+    textarea.style.left = '-9999px';
+    document.body.append(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    textarea.remove();
   }
 })();

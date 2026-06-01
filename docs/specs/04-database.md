@@ -43,6 +43,7 @@
 | `current_round` | `int` | NOT NULL, default `0` | |
 | `current_turn_index` | `int` | NOT NULL, default `0` | |
 | `reporter_participant_id` | `uuid` | FK → `participants.id`, NULL | Set when entering `drafting` |
+| `deleted_at` | `timestamptz` | NULL | Non-null means hidden from normal dashboard and default project-detail topic lists; child records are preserved |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 | `updated_at` | `timestamptz` | NOT NULL, default `now()` | |
 
@@ -143,6 +144,7 @@ Note: One report row per topic. Uniqueness enforced at the application level.
 | `messages(topic_id, turn_index, round_index)` | Debate replay |
 | `participants(project_id, join_order)` | Round-robin determination |
 | `turns(topic_id, status)` | Fast lookup of the active turn |
+| `topics(project_id, deleted_at, created_at)` | Default visible-topic listing and dashboard topic selection |
 
 ---
 

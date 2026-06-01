@@ -7,9 +7,16 @@ import {
 } from '@prisma/client';
 
 import { Audience } from '../common/audience';
+import { TopicHideNotAllowedError } from '../common/errors/domain.errors';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTopicDto } from './dto/create-topic.dto';
 import { serializeTopic } from './topic.presenter';
+
+const HIDABLE_TOPIC_PHASES: TopicPhase[] = [
+  TopicPhase.preparing,
+  TopicPhase.finalized,
+  TopicPhase.closed,
+];
 
 @Injectable()
 export class TopicsService {
@@ -83,5 +90,56 @@ export class TopicsService {
     });
 
     return serializeTopic(topic, audience);
+  }
+
+  async hideTopic(projectSlug: string, topicId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const project = await tx.project.findUnique({
+        where: { slug: projectSlug },
+        select: { id: true },
+      });
+
+      if (!project) {
+        throw new NotFoundException(`Project not found: ${projectSlug}`);
+      }
+
+      const topic = await tx.topic.findFirst({
+        where: {
+          id: topicId,
+          projectId: project.id,
+        },
+      });
+
+      if (!topic) {
+        throw new NotFoundException(`Topic not found: ${topicId}`);
+      }
+
+      await tx.$queryRaw`
+        SELECT id FROM topics WHERE id = ${topic.id}::uuid FOR UPDATE
+      `;
+
+      const lockedTopic = await tx.topic.findFirst({
+        where: { id: topic.id },
+      });
+
+      if (!lockedTopic) {
+        throw new NotFoundException(`Topic not found: ${topicId}`);
+      }
+
+      if (lockedTopic.deletedAt) {
+        return serializeTopic(lockedTopic, 'human');
+      }
+
+      if (!HIDABLE_TOPIC_PHASES.includes(lockedTopic.phase)) {
+        throw new TopicHideNotAllowedError(lockedTopic.phase);
+      }
+
+      const hidden = await tx.topic.update({
+        where: { id: lockedTopic.id },
+        data: { deletedAt: new Date() },
+      });
+
+      return serializeTopic(hidden, 'human');
+    });
   }
 }

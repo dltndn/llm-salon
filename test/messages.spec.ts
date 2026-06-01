@@ -40,6 +40,7 @@ class InMemoryMessagesPrisma {
     currentTurnIndex: 1,
     version: 0,
     reporterParticipantId: null,
+    deletedAt: null,
     createdAt: now,
     updatedAt: now,
   };

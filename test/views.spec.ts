@@ -11,6 +11,7 @@ import {
 } from '@prisma/client';
 import * as request from 'supertest';
 
+import { uuidSnippet } from '../src/common/mcp-prompt-copy';
 import { createTestApp } from './test-app';
 
 const now = new Date('2026-05-18T00:00:00.000Z');
@@ -62,6 +63,7 @@ class InMemoryViewsPrisma {
                   currentRound: 0,
                   currentTurnIndex: 1,
                   reporterParticipantId: null,
+                  deletedAt: null,
                   createdAt: now,
                   updatedAt: now,
                 },
@@ -92,6 +94,7 @@ class InMemoryViewsPrisma {
           createdAt: now,
           participant: {
             displayName: 'Codex / gpt-5.4',
+            anonymousName: 'Member A',
           },
         },
       ]),
@@ -188,8 +191,18 @@ describe('EJS dashboard views', () => {
     expect(response.text).toContain('Dashboard Topic');
     expect(response.text).toContain('Codex / gpt-5.4');
     expect(response.text).toContain('Claude / Sonnet');
+    expect(response.text).toContain('Codex / gpt-5.4 (Member A)');
     expect(response.text).toContain('Human visible message');
     expect(response.text).toContain('Topic: Dashboard Topic');
+    expect(response.text).toContain(uuidSnippet(projectId));
+    expect(response.text).toContain(uuidSnippet(topicId));
+    expect(response.text).toContain('Join the LLM-Salon project using projectId');
+    expect(response.text).toContain('call join_project with this projectId');
+    expect(response.text).toContain('Use topicId');
+    expect(response.text).toContain('submit_message when it is your turn');
+    expect(response.text).toContain('Copy UUID');
+    expect(response.text).toContain('Copy MCP prompt');
+    expect(response.text).toContain('id="participants-heading"');
     expect(response.text).toContain('Draft report content');
     expect(response.text).toContain('Final report content');
     expect(response.text).toContain('data-project-slug="view-project"');
@@ -236,5 +249,49 @@ describe('EJS dashboard views', () => {
 
   it('returns 404 for unknown projects', async () => {
     await request(app.getHttpServer()).get('/projects/missing').expect(404);
+  });
+
+  it('shows the participant section when the project has no topics', async () => {
+    prisma.project.findUnique.mockImplementationOnce(({ where }) =>
+      Promise.resolve(
+        where.slug === 'view-project'
+          ? {
+              id: projectId,
+              slug: 'view-project',
+              name: 'View Project',
+              status: ProjectStatus.created,
+              createdAt: now,
+              updatedAt: now,
+              topics: [],
+              participants: [
+                {
+                  id: participantAId,
+                  projectId,
+                  displayName: 'Codex / gpt-5.4',
+                  anonymousName: 'Member A',
+                  participantType: ParticipantType.app,
+                  providerName: null,
+                  modelName: 'gpt-5.4',
+                  clientName: 'Codex',
+                  status: ParticipantStatus.active,
+                  joinOrder: 1,
+                  joinedAt: now,
+                  createdAt: now,
+                  updatedAt: now,
+                },
+              ],
+            }
+          : null,
+      ),
+    );
+
+    const response = await request(app.getHttpServer())
+      .get('/projects/view-project')
+      .expect(200);
+
+    expect(response.text).toContain('id="participants-heading"');
+    expect(response.text).toContain('Codex / gpt-5.4');
+    expect(response.text).not.toContain('Codex / gpt-5.4 (Member A)');
+    expect(response.text).toContain('No topics yet.');
   });
 });

@@ -37,6 +37,7 @@ export class SseBroadcasterService implements OnModuleInit, OnModuleDestroy {
           message: {
             id: payload.message.id,
             displayName: payload.message.participant.displayName,
+            anonymousName: payload.message.participant.anonymousName,
             content: payload.message.content,
             phase: payload.message.phase,
             turnIndex: payload.message.turnIndex,
