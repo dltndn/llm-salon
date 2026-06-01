@@ -33,6 +33,18 @@ Each proposal should declare one of these statuses near the top:
 
 Accepted and implemented proposals stay in this folder as historical context. They do not replace `docs/specs/`.
 
+## Scope Isolation
+
+When working on one proposal, keep the reading and implementation scope tied to that proposal.
+
+- Read the target proposal, the specs it links, and any decision explicitly linked by that target proposal.
+- Do not read or apply another proposal merely because it is also `Accepted`.
+- Do not read or apply a decision that belongs to another proposal unless the target proposal or current live specs explicitly name it as relevant.
+- Do not pre-merge behavior from a later proposal into specs, prompts, tests, or implementation instructions for the current proposal.
+- If a later accepted proposal is known to exist but is not part of the current task, implementation handoff prompts should explicitly say not to read or implement it.
+
+`Accepted` means the direction is approved. It does not mean the behavior is already part of the live source of truth unless the relevant `docs/specs/` files have been updated for that proposal. Until that happens, treat the proposal and any related decision as queued work, not as context to blend into unrelated proposal work.
+
 ## Workflow
 
 1. Create a new proposal file using the naming pattern `NNN-short-name.md`.
