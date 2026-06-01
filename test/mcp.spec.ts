@@ -620,6 +620,118 @@ describe('MCP stdio server', () => {
     );
   });
 
+  it('returns idle project status when the project has no topic', async () => {
+    const prisma = new InMemoryPrisma();
+    app = await createTestApp(prisma as unknown as PrismaService);
+    await app.listen(0, '127.0.0.1');
+
+    const address = app.getHttpServer().address() as { port: number };
+    await writeFile(
+      join(tempHome, 'server.lock'),
+      `${JSON.stringify({ pid: process.pid, port: address.port })}\n`,
+      'utf8',
+    );
+
+    child = spawnMcp(tempHome);
+    await initializeChild(child);
+
+    const project = await callTool<{ projectId: string; slug: string }>(
+      child,
+      'create_project',
+      { name: 'Idle Project' },
+    );
+    const status = await callTool<{
+      phase: string | null;
+      mode: string | null;
+      currentRound: number | null;
+      maxRounds: number | null;
+      currentTurnIndex: number | null;
+      maxTurns: number | null;
+      currentMember: string | null;
+      reporterMember: string | null;
+      participants: unknown[];
+      topic: unknown;
+      documents: unknown[];
+      serverTime: string;
+      topicVersion: number | null;
+    }>(child, 'get_project_status', { projectIdOrSlug: project.projectId });
+
+    expect(status).toEqual({
+      phase: null,
+      mode: null,
+      currentRound: null,
+      maxRounds: null,
+      currentTurnIndex: null,
+      maxTurns: null,
+      currentMember: null,
+      reporterMember: null,
+      participants: [],
+      topic: null,
+      documents: [],
+      topicVersion: null,
+      serverTime: expect.any(String),
+    });
+    expect(Date.parse(status.serverTime)).not.toBeNaN();
+  });
+
+  it('registers through join-only MCP flow without mutating topic state', async () => {
+    const prisma = new InMemoryPrisma();
+    app = await createTestApp(prisma as unknown as PrismaService);
+    await app.listen(0, '127.0.0.1');
+
+    const address = app.getHttpServer().address() as { port: number };
+    await writeFile(
+      join(tempHome, 'server.lock'),
+      `${JSON.stringify({ pid: process.pid, port: address.port })}\n`,
+      'utf8',
+    );
+
+    child = spawnMcp(tempHome);
+    await initializeChild(child);
+
+    const project = await callTool<{ projectId: string; slug: string }>(
+      child,
+      'create_project',
+      { name: 'Join Only' },
+    );
+    const participant = await callTool<{
+      participantId: string;
+      anonymousName: string;
+      joinOrder: number;
+    }>(child, 'join_project', {
+      projectId: project.projectId,
+      clientName: 'Codex',
+      modelName: 'GPT-5',
+    });
+    const status = await callTool<{
+      phase: string | null;
+      topic: unknown;
+      participants: Array<{ anonymousName: string }>;
+      documents: unknown[];
+    }>(child, 'get_project_status', { projectIdOrSlug: project.slug });
+
+    expect(participant).toMatchObject({
+      anonymousName: 'Member A',
+      joinOrder: 1,
+    });
+    expect(status).toMatchObject({
+      phase: null,
+      topic: null,
+      participants: [{ anonymousName: 'Member A' }],
+      documents: [],
+    });
+
+    const projectDetails = await request(app.getHttpServer())
+      .get(`/api/projects/${project.slug}?audience=anonymous`)
+      .expect(200);
+    const documents = await request(app.getHttpServer())
+      .get(`/api/projects/${project.slug}/documents?audience=anonymous`)
+      .expect(200);
+
+    expect(projectDetails.body.topics).toEqual([]);
+    expect(documents.body).toEqual([]);
+  });
+
   it('prints the MCP install prompt from the CLI', () => {
     const result = spawnSync(
       process.execPath,
@@ -641,6 +753,15 @@ describe('MCP stdio server', () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain(
       'Add an MCP server named "llm-salon" using the command `llm-salon mcp`.',
+    );
+    expect(result.stdout).toContain(
+      'When asked only to join a project, call join_project and then get_project_status.',
+    );
+    expect(result.stdout).toContain(
+      'If no topic exists yet, stop after reporting successful registration',
+    );
+    expect(result.stdout).toContain(
+      'before creating a topic, adding documents, or submitting messages',
     );
     expect(result.stderr).toBe('');
   });

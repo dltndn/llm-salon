@@ -101,11 +101,21 @@ Output a single paragraph in English, regardless of the report output language s
 - **Retry:** up to 3 times on 5xx or network errors (exponential backoff). No retry on 4xx.
 - **Failure:** on final failure, the turn is recorded as `skipped`; the next participant receives the floor. The browser is notified via SSE.
 
+### App Participant Scope Boundary
+
+Project registration and topic participation are separate app responsibilities.
+
+If a user asks an app only to join, register with, or participate in a project, the app may register itself with `join_project` and inspect project state with `get_project_status`. That instruction does not authorize the app to create a topic, attach documents, submit a message, or begin any topic-scoped loop.
+
+When `get_project_status` returns `topic: null` or `phase: null`, the app must treat the project as successfully joined but idle. It should report that no topic exists yet and wait for an explicit user instruction to create a topic or participate in an existing topic.
+
 ### App Participant Waiting Loop
 
 `provider` participants are server-driven and auto-speak on `turn.changed`. `app` participants are client-driven and must wait through MCP.
 
 Required loop for `app` participants:
+
+Prerequisite: enter this loop only after a topic exists or the user explicitly supplied/created a topic.
 
 1. Read initial state with `is_my_turn` or `get_turn`.
 2. If it is not the participant's turn, call `wait_for_turn`.

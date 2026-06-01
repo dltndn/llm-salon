@@ -133,10 +133,25 @@ export class McpHttpBridge {
     const topic = project.topics?.[0];
 
     if (!topic) {
-      throw new McpToolError({
-        error: 'PROJECT_HAS_NO_TOPIC',
-        message: 'Project has no topic.',
-      });
+      const documents = await requestJson<unknown[]>(
+        `${baseUrl}/api/projects/${slug}/documents?audience=anonymous`,
+      );
+
+      return {
+        phase: null,
+        mode: null,
+        currentRound: null,
+        maxRounds: null,
+        currentTurnIndex: null,
+        maxTurns: null,
+        currentMember: null,
+        reporterMember: null,
+        participants: project.participants ?? [],
+        topic: null,
+        documents,
+        serverTime: new Date().toISOString(),
+        topicVersion: null,
+      };
     }
 
     const [turn, documents] = await Promise.all([

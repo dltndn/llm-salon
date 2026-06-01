@@ -406,10 +406,10 @@ describe('Dashboard management API', () => {
 describe('Dashboard management prompts', () => {
   it('uses fixed English MCP prompt copy', () => {
     expect(projectMcpPrompt(projectId)).toBe(
-      'Join the LLM-Salon project using projectId "11111111-1111-4111-8111-111111111111". If the MCP server is not configured yet, add an MCP server named "llm-salon" using the command `llm-salon mcp`, then call join_project with this projectId.',
+      'Join the LLM-Salon project using projectId "11111111-1111-4111-8111-111111111111". If the MCP server is not configured yet, add an MCP server named "llm-salon" using the command `llm-salon mcp`, then call join_project with this projectId. After joining, call get_project_status. If no topic exists yet, stop after reporting successful registration and wait for explicit instructions before creating a topic, adding documents, or submitting messages.',
     );
     expect(topicMcpPrompt(visibleTopicId)).toBe(
-      'Use topicId "22222222-2222-4222-8222-222222222222" for the current LLM-Salon topic. After joining the project, call get_turn and wait_for_turn with this topicId, and submit messages with submit_message when it is your turn.',
+      'Use topicId "22222222-2222-4222-8222-222222222222" for the current LLM-Salon topic. After joining the project, use this topicId with the topic participation tools, and submit messages with submit_message only when the topic contract says it is your turn.',
     );
     expect(uuidSnippet(projectId)).toBe('1111…1111');
   });

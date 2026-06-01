@@ -1,20 +1,23 @@
 # Proposal 005: Project Join Boundary For App Participants
 
-Status: Draft
+Status: Implemented
 Owner: Codex
 Created: 2026-05-28
+Accepted: 2026-06-01
 Related analysis:
 - Local documentation review on 2026-05-28 covering MCP onboarding, project-status semantics, and the missing boundary between `join_project` and `create_topic`
 
 Related specs:
 - `docs/specs/00-overview.md`
+- `docs/specs/05-api.md`
 - `docs/specs/06-mcp.md`
 - `docs/specs/07-llm-integration.md`
 - `docs/specs/09-cli.md`
 - `docs/specs/10-testing.md`
+- `docs/user-guide.md`
 
-Planned decision:
-- `docs/decisions/ADR-005-project-join-boundary.md`
+Decision:
+- `docs/decisions/ADR-006-project-join-boundary.md`
 
 Planned worklog:
 - `docs/worklogs/2026-05-28-project-join-boundary.md`
@@ -154,6 +157,8 @@ The goal is to keep this boundary from regressing as MCP guidance evolves.
 
 - `docs/specs/00-overview.md`
   Clarify the distinction between project membership and topic participation in the product vocabulary.
+- `docs/specs/05-api.md`
+  Update dashboard prompt-copy text so project prompts stop at registration/status and topic prompts require an existing topic flow.
 - `docs/specs/06-mcp.md`
   Define the `join_project` operating boundary, the no-topic interpretation of `get_project_status`, and the split between project-level and topic-level app flows.
 - `docs/specs/07-llm-integration.md`
@@ -254,3 +259,4 @@ Before this proposal is reflected in the live specs, the following should be tru
 ## Status History
 
 - 2026-05-28: Draft created to stop app participants from expanding project registration into unauthorized topic creation.
+- 2026-06-01: Accepted; promoted into MCP, LLM integration, CLI, API prompt-copy, testing, and user-guide specs.

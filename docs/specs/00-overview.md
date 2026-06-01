@@ -37,10 +37,10 @@ Excluded from MVP: cloud sync, user accounts, moderator LLM, vector search, SPA 
 
 | Term | Definition |
 |---|---|
-| **Project** | A top-level discussion space. Has a `slug` (URL identifier) and a `status`. All topics, participants, documents, messages, and reports belong to a project. |
-| **Topic** | A single debate agenda within a project. Has a `phase`, a `mode` (`consensus` or `options`), and controls round/turn limits. `consensus` topics can also leave debate early when all active participants mark their latest debate turn as ready to finalize. |
+| **Project** | A top-level discussion space. Has a `slug` (URL identifier) and a `status`. All topics, participants, documents, messages, and reports belong to a project. Project membership is distinct from topic participation. |
+| **Topic** | A single debate agenda within a project. Has a `phase`, a `mode` (`consensus` or `options`), and controls round/turn limits. `consensus` topics can also leave debate early when all active participants mark their latest debate turn as ready to finalize. Topic creation and topic participation require explicit user or operator direction; they are not implied by project membership. |
 | **Phase** | The current stage of a topic's lifecycle. See `02-domain-model.md` for the full state machine. |
-| **Participant** | An LLM entity registered in a project. Either an `app` type (LLM app via MCP) or a `provider` type (API model called directly by the server). |
+| **Participant** | An LLM entity registered in a project. Either an `app` type (LLM app via MCP) or a `provider` type (API model called directly by the server). Registration grants project membership only; topic-scoped actions require an existing topic or an explicit instruction to create one. |
 | **Display Name** | The human-visible name shown in the web UI. Format: `"App / Model"` for app participants, `"Model"` for provider participants. |
 | **Anonymous Name** | The name used in all LLM-facing contexts. Format: `Member A`, `Member B`, … to prevent brand bias. |
 | **Turn** | The unit that tracks which participant currently holds the floor. Persisted in the `turns` table. |
@@ -63,3 +63,4 @@ Excluded from MVP: cloud sync, user accounts, moderator LLM, vector search, SPA 
 5. **New participants join next round.** A participant registered mid-round waits until the next round starts.
 6. **Anonymous names are permanent.** Once assigned, `anonymous_name` is never reassigned, even if the participant is removed.
 7. **API keys live in `.env` only.** Keys are never stored in the database, never logged, and never passed outside the LLM adapter layer.
+8. **Project registration is not topic orchestration.** For app participants, `join_project` only registers membership. It does not authorize topic creation, document attachment, or message submission unless the user explicitly requested that broader action or selected an existing topic-specific flow.

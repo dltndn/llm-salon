@@ -1,6 +1,6 @@
 # Proposal 004: Dashboard UI Management Improvements
 
-Status: Accepted
+Status: Implemented
 Owner: Codex
 Created: 2026-05-28
 Accepted: 2026-06-01

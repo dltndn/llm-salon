@@ -47,6 +47,22 @@ Printed to stderr; process exits with a non-zero code.
 
 ---
 
+## MCP Install Prompt
+
+`llm-salon mcp install-prompt` prints an English prompt for pasting into LLM apps that support MCP.
+
+Required prompt content:
+
+- configure an MCP server named `llm-salon` with the command `llm-salon mcp`
+- call `get_server_status` after registration to verify connectivity
+- when the user asks only to join a project, call `join_project` and then `get_project_status`
+- if `get_project_status` shows no current topic (`topic: null` or `phase: null`), stop after reporting successful registration and the no-topic state
+- do not create topics, add documents, or submit messages unless the user explicitly asks for that broader topic-level action or provides an existing topic flow
+
+The prompt is a behavioral contract for general-purpose LLM apps, not only a connectivity hint.
+
+---
+
 ## Single-Instance Lock
 
 `~/.llm-salon/server.lock` stores the running server's PID and port. On `llm-salon start`, if the lock file exists and the PID is alive, the new process exits with an appropriate message instead of starting a duplicate server.

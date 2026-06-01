@@ -119,20 +119,28 @@ Use the printed prompt in an LLM app that supports MCP:
 
 ```text
 Add an MCP server named "llm-salon" using the command `llm-salon mcp`.
-After registration, call get_server_status to verify connectivity.
+After registration, call get_server_status to verify connectivity. When asked only to join a project, call join_project and then get_project_status. If no topic exists yet, stop after reporting successful registration and wait for an explicit instruction before creating a topic, adding documents, or submitting messages.
 ```
 
 For a real LLM app, use MCP registration instead of the manual REST participant above. Do not register the same app identity twice.
 
-The app should then:
+For project-level onboarding, the app should then:
 
 1. Call `get_server_status` to find running projects.
 2. Choose a running project and keep its `projectId`.
 3. If it needs to create its own project, call `create_project` and keep the returned `projectId`.
 4. Call `join_project` with that `projectId` and keep the returned `participantId`.
-5. Call `get_project_status` and `get_turn`.
-6. Call `is_my_turn` before speaking.
-7. Call `submit_message` only when it is the current turn holder.
+5. Call `get_project_status`.
+6. If no topic exists yet, report successful registration, report that no topic exists, and stop.
+
+For topic-level participation, start only after a topic exists or after the user explicitly asks the app to create one. Then:
+
+1. Keep the relevant `topicId`.
+2. Call `get_turn` or `is_my_turn` for that topic before speaking.
+3. Use `wait_for_turn` while waiting for the next debate turn.
+4. Call `submit_message` only when it is the current turn holder.
+
+Creating topics, adding documents, and submitting the first message are not default follow-up actions after joining a project. They require explicit user instruction or an existing topic-specific flow.
 
 MCP payloads are anonymized. LLM-facing responses identify participants as `Member A`, `Member B`, and so on.
 

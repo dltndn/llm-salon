@@ -47,6 +47,9 @@
 - Spawn the `llm-salon mcp` child process and run JSON-RPC message round-trips.
 - Verify tool response anonymization: no human-facing fields in any tool response.
 - Verify `wait_for_turn` blocks until wakeup or timeout and preserves the anonymous response contract.
+- Verify a join-only MCP flow registers the app participant, allows project status inspection, and does not create a topic, add a document, or submit a message when no topic exists.
+- Verify `get_project_status` for a project with no current topic returns `topic: null`, `phase: null`, and no topic-scoped turn state.
+- Verify `llm-salon mcp install-prompt` clearly separates project registration from topic creation and message submission.
 
 ---
 
@@ -77,6 +80,8 @@ These specific scenarios must have permanent test coverage:
 | Document upload exceeding profile limit | Returns `413` with descriptive message |
 | Dashboard message history | Shows `displayName` plus anonymous label in message headers only |
 | Dashboard with no topics | Still shows the project-level participant section |
+| MCP join-only flow with no topics | Registers the app participant, returns no-topic project status, and leaves topic/document/message state unchanged |
+| MCP install prompt join boundary | Instructs apps to stop after join + project status when no topic exists and forbids topic creation/message submission without explicit instruction |
 | Dashboard UUID copy controls | Copy raw UUID and the fixed English MCP prompt for project and selected topic UUIDs |
 | Participant removal | Sets status to `removed` and preserves existing message/turn/report history |
 | Participant removal for current turn holder | Returns `409 Conflict` and leaves status unchanged |

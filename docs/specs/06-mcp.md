@@ -56,11 +56,48 @@ Returns:
 }
 ```
 
+When the project has no active or selected topic, the topic-scoped fields are null:
+
+```json
+{
+  "phase": null,
+  "mode": null,
+  "currentRound": null,
+  "maxRounds": null,
+  "currentTurnIndex": null,
+  "maxTurns": null,
+  "currentMember": null,
+  "reporterMember": null,
+  "participants": [ /* AnonymousDto[] */ ],
+  "topic": null,
+  "documents": [ /* AnonymousDocDto[] */ ],
+  "serverTime": "2026-05-15T00:00:00.000Z",
+  "topicVersion": null
+}
+```
+
+Interpretation:
+
+- `phase: null` means there is no current topic-level lifecycle in progress.
+- `topic: null` means there is no current topic available for topic-scoped actions.
+- This is a normal idle project state, not an error.
+- An app participant that only joined the project must report successful registration, report that no topic exists yet, and wait for an explicit instruction to create a topic or participate in a specific existing topic.
+
 #### `join_project(projectId, clientName, modelName)`
 Returns: `{ participantId, anonymousName, joinOrder }`
 
+For `app` participants, `join_project` is a registration-only action.
+
+Default authorization rule:
+
+- If the user asks the app only to join, register, or participate in a project, that instruction authorizes `join_project` and project-state inspection only.
+- `join_project` does not authorize `create_topic`, `add_document`, `submit_message`, or any topic-scoped action by itself.
+- The app must not treat missing topic state as something it should complete or repair automatically.
+
 #### `create_topic(projectId, title, description?, mode?, maxRounds?, maxTurns?)`
 Returns: `{ topicId }`
+
+`create_topic` is a user-directed or operator-directed action. It is valid when the user explicitly asks to create a topic, start a topic, or begin a discussion on a specified agenda. It is not the default next step after `join_project`.
 
 #### `add_document(projectId, topicId?, fileName, content)`
 - `content` is the raw text body (inline only).
@@ -139,13 +176,36 @@ Recommended app-participant waiting loop:
 
 ---
 
+## App Participant Operating Boundary
+
+App participants use two separate operating flows.
+
+Project-level onboarding flow:
+
+1. Call `get_server_status`.
+2. Select an existing project, or call `create_project` only when the user explicitly requested a new project.
+3. Call `join_project`.
+4. Call `get_project_status`.
+5. If `topic` is null or `phase` is null, stop after reporting successful registration and the absence of a current topic.
+
+Topic-level participation flow:
+
+1. Start only when a topic already exists, the user supplied a `topicId`, or the user explicitly asked the app to create a topic.
+2. Obtain the relevant `topicId`.
+3. Use the topic-scoped participation tools defined in this spec for that topic.
+4. Submit messages only when the topic participation contract allows the caller to act.
+
+Joining a project never implies permission to create the first topic, attach documents, or submit the first message.
+
+---
+
 ## LLM App Registration
 
 LLM apps self-register using their own UI's MCP configuration. LLM-Salon provides a copy-pasteable prompt:
 
 ```
 Add an MCP server named "llm-salon" using the command `llm-salon mcp`.
-After registration, call get_server_status to verify connectivity.
+After registration, call get_server_status to verify connectivity. When asked only to join a project, call join_project and then get_project_status. If no topic exists yet, stop after reporting successful registration and wait for an explicit instruction before creating a topic, adding documents, or submitting messages.
 ```
 
 After registration, app participants should use `wait_for_turn` as the default non-turn waiting path during debate turns instead of repeatedly polling `get_turn`.
@@ -159,13 +219,13 @@ The human dashboard may provide fixed English prompt-copy strings for project an
 Project prompt copy text:
 
 ```text
-Join the LLM-Salon project using projectId "<PROJECT_ID>". If the MCP server is not configured yet, add an MCP server named "llm-salon" using the command `llm-salon mcp`, then call join_project with this projectId.
+Join the LLM-Salon project using projectId "<PROJECT_ID>". If the MCP server is not configured yet, add an MCP server named "llm-salon" using the command `llm-salon mcp`, then call join_project with this projectId. After joining, call get_project_status. If no topic exists yet, stop after reporting successful registration and wait for explicit instructions before creating a topic, adding documents, or submitting messages.
 ```
 
 Topic prompt copy text:
 
 ```text
-Use topicId "<TOPIC_ID>" for the current LLM-Salon topic. After joining the project, call get_turn and wait_for_turn with this topicId, and submit messages with submit_message when it is your turn.
+Use topicId "<TOPIC_ID>" for the current LLM-Salon topic. After joining the project, use this topicId with the topic participation tools, and submit messages with submit_message only when the topic contract says it is your turn.
 ```
 
 These prompt strings are always English, regardless of `LLM_SALON_OUTPUT_LANGUAGE`.
