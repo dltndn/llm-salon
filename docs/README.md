@@ -7,6 +7,7 @@ Read this file first before adding or changing documents. It explains which dire
 ## Principles
 
 - `docs/specs/` is the source of truth for approved product and system behavior.
+- `docs/CONTEXT.md` is the domain glossary for stable product language.
 - `docs/proposals/` is for changes that are being proposed but are not yet the source of truth.
 - `docs/decisions/` is for cross-cutting design decisions and their rationale.
 - `docs/worklogs/` is for implementation records tied to completed work.
@@ -23,6 +24,13 @@ Use `specs/` for approved, current behavior.
 - Read here when you need the current rule, contract, lifecycle, invariant, or interface.
 - Update here when a proposal has been accepted and the final behavior is now decided.
 - Keep content normative. Avoid open-ended discussion.
+
+### `CONTEXT.md`
+
+Use `docs/CONTEXT.md` for stable domain terms and ambiguity resolution.
+
+- Define terms that product, specs, and implementation should use consistently.
+- Do not use it as a substitute for specs, proposals, decisions, or worklogs.
 
 ### `proposals/`
 
