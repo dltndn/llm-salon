@@ -448,6 +448,7 @@ function toContextBuilderInput(input: {
       createdAt: message.createdAt,
     })) as MessageAnonymousDto[],
     reporterMember: null,
+    taskAction: 'submit_debate_message',
   } as ContextBuilderInput;
 }
 

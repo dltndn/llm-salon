@@ -12,7 +12,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { createTestApp } from './test-app';
 import { InMemoryPrisma } from './test-prisma';
 
-describe('Turn wait REST API', () => {
+describe('Action wait REST API', () => {
   let app: INestApplication;
   let prisma: InMemoryPrisma;
 
@@ -25,11 +25,11 @@ describe('Turn wait REST API', () => {
     await app.close();
   });
 
-  it('returns immediately when the caller already has the turn', async () => {
+  it('returns immediately when the caller already has an actionable debate task', async () => {
     const { topicId, participantAId } = await createProjectWithTopic(app);
 
     const response = await request(app.getHttpServer())
-      .get(`/api/projects/wait-project/topics/${topicId}/turn/wait`)
+      .get(`/api/projects/wait-project/topics/${topicId}/action/wait`)
       .query({
         participantId: participantAId,
         audience: 'anonymous',
@@ -38,17 +38,41 @@ describe('Turn wait REST API', () => {
       .expect(200);
 
     expect(response.body).toMatchObject({
-      isMyTurn: true,
-      currentMember: 'Member A',
+      isActionable: true,
+      action: 'submit_debate_message',
+      assignedMember: 'Member A',
       phase: 'preparing',
       currentTurnIndex: 1,
-      wakeupReason: 'turn_changed',
+      wakeupReason: 'immediate',
     });
     expect(response.body.serverTime).toBeDefined();
     expect(response.body.topicVersion).toBeGreaterThan(0);
   });
 
-  it('wakes when a later turn change makes the caller current', async () => {
+  it('returns a zero-timeout non-actionable response without holding the request open', async () => {
+    const { topicId, participantAId } = await createProjectWithTopic(app);
+
+    await submitMessage(app, topicId, participantAId, 'Start debating');
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/projects/wait-project/topics/${topicId}/action/wait`)
+      .query({
+        participantId: participantAId,
+        audience: 'anonymous',
+        timeoutMs: 0,
+      })
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      isActionable: false,
+      action: 'none',
+      assignedMember: 'Member B',
+      phase: 'debating',
+      wakeupReason: 'timeout',
+    });
+  });
+
+  it('wakes when a later turn change makes the caller actionable', async () => {
     const { topicId, participantAId, participantBId } =
       await createProjectWithTopic(app);
 
@@ -59,7 +83,7 @@ describe('Turn wait REST API', () => {
       .query({ participantId: participantBId, audience: 'anonymous' })
       .expect(200);
     const waitPromise = request(app.getHttpServer())
-      .get(`/api/projects/wait-project/topics/${topicId}/turn/wait`)
+      .get(`/api/projects/wait-project/topics/${topicId}/action/wait`)
       .query({
         participantId: participantBId,
         afterTopicVersion: beforeWait.body.topicVersion,
@@ -74,17 +98,18 @@ describe('Turn wait REST API', () => {
     const response = await waitPromise;
 
     expect(response.body).toMatchObject({
-      isMyTurn: true,
-      currentMember: 'Member B',
+      isActionable: true,
+      action: 'submit_debate_message',
+      assignedMember: 'Member B',
       phase: 'debating',
-      wakeupReason: 'turn_changed',
+      wakeupReason: expect.stringMatching(/turn_changed|topic_updated/),
     });
     expect(response.body.topicVersion).toBeGreaterThan(
       beforeWait.body.topicVersion,
     );
   });
 
-  it('times out cleanly when no matching turn change occurs', async () => {
+  it('times out cleanly when no matching state change occurs', async () => {
     const { topicId, participantAId, participantBId } =
       await createProjectWithTopic(app);
 
@@ -95,7 +120,7 @@ describe('Turn wait REST API', () => {
       .query({ participantId: participantBId, audience: 'anonymous' })
       .expect(200);
     const response = await request(app.getHttpServer())
-      .get(`/api/projects/wait-project/topics/${topicId}/turn/wait`)
+      .get(`/api/projects/wait-project/topics/${topicId}/action/wait`)
       .query({
         participantId: participantBId,
         afterTopicVersion: beforeWait.body.topicVersion,
@@ -105,8 +130,9 @@ describe('Turn wait REST API', () => {
       .expect(200);
 
     expect(response.body).toMatchObject({
-      isMyTurn: false,
-      currentMember: 'Member A',
+      isActionable: false,
+      action: 'none',
+      assignedMember: 'Member A',
       phase: 'debating',
       topicVersion: beforeWait.body.topicVersion,
       wakeupReason: 'timeout',
@@ -156,7 +182,7 @@ describe('Turn wait REST API', () => {
       .query({ participantId: participantBId, audience: 'anonymous' })
       .expect(200);
     const waitPromise = request(app.getHttpServer())
-      .get(`/api/projects/wait-project/topics/${topicId}/turn/wait`)
+      .get(`/api/projects/wait-project/topics/${topicId}/action/wait`)
       .query({
         participantId: participantBId,
         afterTopicVersion: beforeWait.body.topicVersion,
@@ -173,17 +199,46 @@ describe('Turn wait REST API', () => {
     const response = await waitPromise;
 
     expect(response.body).toMatchObject({
-      isMyTurn: false,
+      isActionable: false,
+      action: 'none',
       phase: 'drafting',
-      wakeupReason: 'phase_changed',
+      wakeupReason: expect.stringMatching(/phase_changed|topic_updated/),
     });
     expect(response.body.topicVersion).toBeGreaterThan(
       beforeWait.body.topicVersion,
     );
   });
+
+  it('assigns app reporter draft action when no active provider exists', async () => {
+    const { topicId, participantAId, participantBId } =
+      await createProjectWithTopic(app, { maxTurns: 2 });
+
+    await submitMessage(app, topicId, participantAId, 'Opening');
+    await submitMessage(app, topicId, participantBId, 'Final debate turn');
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/projects/wait-project/topics/${topicId}/action/wait`)
+      .query({
+        participantId: participantBId,
+        audience: 'anonymous',
+        timeoutMs: 0,
+      })
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      isActionable: true,
+      action: 'submit_report_draft',
+      assignedMember: 'Member B',
+      phase: 'drafting',
+      wakeupReason: 'immediate',
+    });
+  });
 });
 
-async function createProjectWithTopic(app: INestApplication) {
+async function createProjectWithTopic(
+  app: INestApplication,
+  options: { maxTurns?: number } = {},
+) {
   await request(app.getHttpServer())
     .post('/api/projects')
     .send({ name: 'Wait Project' })
@@ -206,7 +261,11 @@ async function createProjectWithTopic(app: INestApplication) {
     .expect(201);
   const topic = await request(app.getHttpServer())
     .post('/api/projects/wait-project/topics')
-    .send({ title: 'Wait for turns' })
+    .send({
+      title: 'Wait for actions',
+      mode: 'consensus',
+      ...(options.maxTurns !== undefined ? { maxTurns: options.maxTurns } : {}),
+    })
     .expect(201);
 
   return {

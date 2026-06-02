@@ -6,7 +6,8 @@ const MCP_INSTALL_PROMPT =
   'Add an MCP server named "llm-salon" using the command `llm-salon mcp`.\n' +
   'After registration, call get_server_status to verify connectivity.\n' +
   'When asked only to join a project, call join_project and then get_project_status.\n' +
-  'If no topic exists yet, stop after reporting successful registration and wait for an explicit instruction before creating a topic, adding documents, or submitting messages.';
+  'If no topic exists yet, stop after reporting successful registration and wait for an explicit instruction before creating a topic, adding documents, or submitting messages.\n' +
+  'After explicit entry into a topic flow, use wait_for_action as the single way to discover debate, review, draft-report, and final-report tasks.';
 
 @SubCommand({
   name: 'install-prompt',

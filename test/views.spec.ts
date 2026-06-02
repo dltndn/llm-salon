@@ -201,10 +201,8 @@ describe('EJS dashboard views', () => {
     expect(response.text).toContain('get_project_status');
     expect(response.text).toContain('stop after reporting successful registration');
     expect(response.text).toContain('Use topicId');
-    expect(response.text).toContain('topic participation tools');
-    expect(response.text).toContain(
-      'submit_message only when the topic contract says it is your turn',
-    );
+    expect(response.text).toContain('wait_for_action');
+    expect(response.text).toContain('submit_report_draft');
     expect(response.text).not.toContain('call get_turn and wait_for_turn');
     expect(response.text).toContain('Copy UUID');
     expect(response.text).toContain('Copy MCP prompt');

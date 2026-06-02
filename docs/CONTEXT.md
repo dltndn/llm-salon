@@ -8,7 +8,7 @@ Avoid: using "active" to imply that the participant can perform every system rol
 **Report-capable topic**: A topic that can move from debate into report production after its completion condition is met, even when every active participant joined through an LLM app.
 Avoid: provider-only finalization.
 
-**App reporter**: An app participant responsible for producing the report draft and final report when a topic with no active provider leaves debate.
+**App reporter**: The current app turn holder responsible for producing the report draft and final report when a topic with no active provider leaves debate.
 Avoid: treating app reporters as server-invoked providers.
 
 **Reporter**: The participant that owns report production for a topic, whether provider-backed or app-backed.
@@ -30,8 +30,8 @@ Avoid: using "turn" when the assignment may not be a debate statement.
 
 - An active participant may be an app participant or a provider participant.
 - Report production must not require a provider participant when the topic is otherwise ready to leave debate.
-- When a topic reaches consensus and has an active provider, provider report production takes priority.
-- When a topic reaches consensus and has no active provider, the current turn holder becomes the app reporter.
+- When a topic leaves debate and has an active provider, provider report production takes priority.
+- When a topic leaves debate and has no active provider, the current turn holder becomes the app reporter.
 - The same reporter owns both draft and final report production for a topic.
 - The report draft turn follows the final debate message instead of being embedded in it.
 - App participants use the action wait flow as the single way to discover their next actionable task.

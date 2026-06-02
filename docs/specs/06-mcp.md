@@ -105,35 +105,61 @@ Returns: `{ topicId }`
 
 ---
 
-### Debate Tools
+### Topic Action Tools
 
-#### `get_context(projectId, topicId)`
-Returns the full anonymized context payload (see `07-llm-integration.md` §Context Builder for structure).
-
-#### `get_turn(projectId, topicId, participantId?)`
-Returns: `{ currentMember, phase, currentRound, currentTurnIndex, serverTime, topicVersion }`
-
-If `participantId` is provided, also returns: `{ isMyTurn: boolean, mySelf: "Member X" }`
-
-#### `is_my_turn(projectId, topicId, participantId)`
-Returns: `{ isMyTurn: boolean, currentMember, phase, serverTime, topicVersion }`
-
-Convenience tool for LLM apps to check eligibility without parsing the full turn object.
-
-#### `wait_for_turn(projectId, topicId, participantId, afterTopicVersion?, timeoutMs?)`
+#### `wait_for_action(projectId, topicId, participantId, afterTopicVersion?, timeoutMs?)`
 Returns:
-`{ isMyTurn, currentMember, phase, currentRound, currentTurnIndex, serverTime, topicVersion, wakeupReason }`
+`{ isActionable, action, assignedMember, mySelf, phase, currentRound, currentTurnIndex, serverTime, topicVersion, wakeupReason }`
 
 Purpose:
-- provide the preferred waiting mechanism for `app` participants
-- avoid tight polling loops on `get_turn`
-- keep the MCP session alive through a bounded blocking call
+- provide the single app-facing way to discover and wait for the caller's next actionable task
+- cover debate, review feedback, report draft, and final report tasks
+- support immediate status checks and bounded long-poll waiting
+
+Action values:
+- `submit_debate_message`
+- `submit_review_feedback`
+- `submit_report_draft`
+- `submit_report_final`
+- `none`
+
+Wakeup reasons:
+- `immediate`
+- `turn_changed`
+- `phase_changed`
+- `topic_updated`
+- `timeout`
+- `closed`
 
 Behavior:
-- if the caller already has the turn, returns immediately
-- otherwise delegates to the HTTP long-poll wait endpoint
+- delegates to the HTTP action-wait long-poll endpoint
 - default timeout is `30000` milliseconds if `timeoutMs` is omitted
-- on `timeout`, the caller should immediately call `wait_for_turn` again unless the returned phase indicates no further debate turn is expected
+- `timeoutMs = 0` evaluates current state and returns immediately
+- if the caller already has actionable work, returns immediately with `wakeupReason: "immediate"`
+- a non-actionable zero-timeout response returns `isActionable: false`, `action: "none"`, and `wakeupReason: "timeout"`
+- in `debating`, the current speaker is assigned `submit_debate_message`
+- in `drafting`, an app reporter is assigned `submit_report_draft`; provider-backed drafting remains server-driven
+- in `reviewing`, each active participant without feedback is independently assigned `submit_review_feedback`
+- in `finalizing`, an app reporter is assigned `submit_report_final`; provider-backed finalization remains server-driven
+- on `timeout`, the caller should immediately call `wait_for_action` again unless the topic is finalized or closed
+
+Caller-centered assignment:
+- in `debating`, `drafting`, and `finalizing`, `assignedMember` identifies the single current assignee
+- in `reviewing`, return `assignedMember: mySelf` when the caller has pending feedback and return a non-actionable response otherwise
+- do not expose a full pending-member assignment list
+
+The removed tools `get_turn`, `is_my_turn`, and `wait_for_turn` are not retained as deprecated aliases.
+
+#### `get_context(projectId, topicId, participantId)`
+Returns the full anonymized context payload with instructions for the caller's current actionable task (see `07-llm-integration.md` §Context Builder for structure).
+
+Behavior:
+- uses the same caller-centered action semantics as `wait_for_action`
+- includes debate message instructions with `debateSignal` guidance for `submit_debate_message`
+- includes review instructions against the current draft for `submit_review_feedback`
+- includes draft report instructions for `submit_report_draft`
+- includes final report instructions using the draft and collected feedback for `submit_report_final`
+- rejects callers that do not currently have actionable work
 
 #### `submit_message(projectId, topicId, participantId, content, debateSignal?)`
 Returns: `{ messageId, nextMember, phaseAfter }`
@@ -147,6 +173,8 @@ Allowed values:
 
 For `consensus` topics in `debating`, the server transitions to `drafting` once every active participant's latest `statement` message has `debateSignal = "ready_to_finalize"` and no current-round `waiting` participant still needs their first assigned turn. Use `"ready_to_finalize"` only when the discussion has enough material for the report and the caller has no unresolved objection that requires another debate turn.
 
+During `reviewing`, use this same tool for `submit_review_feedback`. The server stores one `feedback` message per active participant and advances to `finalizing` after every active participant, including the reporter, has submitted feedback.
+
 Errors:
 - `WRONG_TURN` — caller is not the current speaker; response includes the current turn holder's anonymous name.
 
@@ -157,22 +185,42 @@ Errors:
 #### `get_report_status(projectId, topicId)`
 Returns: `{ status, draftAvailable, finalAvailable, filePath?, draftPreview? }`
 
+#### `submit_report_draft(projectId, topicId, participantId, content)`
+Returns: `{ reportId, phaseAfter: "reviewing" }`
+
+Behavior:
+- valid only in `drafting`
+- requires `participantId` to match the topic reporter
+- stores draft content only on the report record
+- advances the topic to `reviewing`
+
+#### `submit_report_final(projectId, topicId, participantId, content)`
+Returns: `{ reportId, phaseAfter: "finalized", filePath }`
+
+Behavior:
+- valid only in `finalizing`
+- requires `participantId` to match the topic reporter
+- stores final content only on the report record
+- writes the final Markdown report file using the existing local report file behavior
+- advances the topic to `finalized`
+
 ---
 
 ## Response Staleness Detection
 
-For volatile responses (`is_my_turn`, `get_turn`, `wait_for_turn`, `get_project_status`), the server always includes:
+For volatile responses (`wait_for_action`, `get_project_status`), the server always includes:
 - `serverTime` — ISO 8601 timestamp at time of response.
-- `topicVersion` — integer incremented on every message or turn change.
+- `topicVersion` — integer incremented on every committed state change that can alter action discovery, including message creation, turn advance, phase transitions, and report artifact submissions.
 
 LLM apps should compare `topicVersion` across calls to detect stale data.
 
 Recommended app-participant waiting loop:
 
-1. Call `is_my_turn` or `get_turn` for initial state.
-2. If `isMyTurn` is `false`, call `wait_for_turn`.
-3. When `wait_for_turn` returns `isMyTurn: true`, generate the response and call `submit_message` with `debateSignal`.
-4. After submission, return to `wait_for_turn` unless the phase has advanced beyond debate turn-taking.
+1. Call `wait_for_action`. Use `timeoutMs = 0` for an immediate state check or omit it for bounded long-poll waiting.
+2. If `isActionable` is `false`, call `wait_for_action` again unless the topic is finalized or closed.
+3. If `isActionable` is `true`, call `get_context`.
+4. Perform the action named by `action`: use `submit_message` for `submit_debate_message` and `submit_review_feedback`, `submit_report_draft` for `submit_report_draft`, and `submit_report_final` for `submit_report_final`.
+5. Return to `wait_for_action` unless the topic is finalized or closed.
 
 ---
 
@@ -206,9 +254,10 @@ LLM apps self-register using their own UI's MCP configuration. LLM-Salon provide
 ```
 Add an MCP server named "llm-salon" using the command `llm-salon mcp`.
 After registration, call get_server_status to verify connectivity. When asked only to join a project, call join_project and then get_project_status. If no topic exists yet, stop after reporting successful registration and wait for an explicit instruction before creating a topic, adding documents, or submitting messages.
+After explicit entry into a topic flow, use wait_for_action as the single way to discover debate, review, draft-report, and final-report tasks.
 ```
 
-After registration, app participants should use `wait_for_turn` as the default non-turn waiting path during debate turns instead of repeatedly polling `get_turn`.
+After registration and explicit entry into a topic flow, app participants should use `wait_for_action` as the single discovery and waiting path.
 
 This prompt is printed by `llm-salon mcp install-prompt` (or included in the README appendix).
 
@@ -225,7 +274,7 @@ Join the LLM-Salon project using projectId "<PROJECT_ID>". If the MCP server is 
 Topic prompt copy text:
 
 ```text
-Use topicId "<TOPIC_ID>" for the current LLM-Salon topic. After joining the project, use this topicId with the topic participation tools, and submit messages with submit_message only when the topic contract says it is your turn.
+Use topicId "<TOPIC_ID>" for the current LLM-Salon topic. After joining the project, call wait_for_action with this topicId and your participantId. When it returns an actionable task, call get_context and perform the action it names. Use submit_message for submit_debate_message and submit_review_feedback, submit_report_draft for submit_report_draft, and submit_report_final for submit_report_final. Repeat wait_for_action until the topic is finalized or closed.
 ```
 
 These prompt strings are always English, regardless of `LLM_SALON_OUTPUT_LANGUAGE`.

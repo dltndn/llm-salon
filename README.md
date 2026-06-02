@@ -144,7 +144,7 @@ After registration, call get_server_status to verify connectivity.
 
 Use either the local REST/CLI participant above for a manual self-check or an MCP app registration for a real LLM app. Do not register the same app identity twice.
 
-After the app registers, it can call `get_server_status`, choose the running project, and keep that project's `projectId` for `join_project`. If the app creates a project through MCP, it should call `create_project` and keep the returned `projectId`. It can then call `get_project_status`, `get_turn`, `is_my_turn`, `submit_message`, and the other MCP tools. MCP responses use anonymous participant names such as `Member A`; provider names, model names, client names, and display names are intentionally omitted from LLM-facing payloads.
+After the app registers, it can call `get_server_status`, choose the running project, and keep that project's `projectId` for `join_project`. If the app creates a project through MCP, it should call `create_project` and keep the returned `projectId`. It can then call `get_project_status`, `wait_for_action`, `get_context`, `submit_message`, `submit_report_draft`, `submit_report_final`, and the other MCP tools. MCP responses use anonymous participant names such as `Member A`; provider names, model names, client names, and display names are intentionally omitted from LLM-facing payloads.
 
 ## First Message Self-Check
 

@@ -253,6 +253,7 @@ function createInput(
     ],
     previousMessages: createMessages(4),
     reporterMember: { anonymousName: 'Member A' },
+    taskAction: 'submit_debate_message',
     profile: 'medium',
     ...overrides,
   } as ContextBuilderInput;

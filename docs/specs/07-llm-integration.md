@@ -47,7 +47,7 @@ Before each LLM call, the `ContextBuilder` assembles the prompt in this order. A
 4. **Attached documents** — text body inline (size limits per context profile)
 5. **Anonymized participant list**
 6. **Anonymized previous messages** (chronological)
-7. **Turn instruction** — caller's anonymous name + output format directive
+7. **Current task instruction** — caller's anonymous name, current `action`, and task-appropriate output directive
 8. **Empty `assistant` slot** — to receive the completion
 
 The same builder is used for both provider API calls and for the `get_context` MCP tool response.
@@ -109,27 +109,43 @@ If a user asks an app only to join, register with, or participate in a project, 
 
 When `get_project_status` returns `topic: null` or `phase: null`, the app must treat the project as successfully joined but idle. It should report that no topic exists yet and wait for an explicit user instruction to create a topic or participate in an existing topic.
 
-### App Participant Waiting Loop
+### App Participant Action Loop
 
-`provider` participants are server-driven and auto-speak on `turn.changed`. `app` participants are client-driven and must wait through MCP.
+`provider` participants are server-driven. `app` participants are client-driven and must discover actionable work through MCP.
 
 Required loop for `app` participants:
 
 Prerequisite: enter this loop only after a topic exists or the user explicitly supplied/created a topic.
 
-1. Read initial state with `is_my_turn` or `get_turn`.
-2. If it is not the participant's turn, call `wait_for_turn`.
-3. If `wait_for_turn` returns `isMyTurn: true`, generate the debate message and call `submit_message` with `debateSignal`.
-4. After submission, call `wait_for_turn` again unless the phase indicates debate turn-taking is over.
+1. Call `wait_for_action`. Use `timeoutMs = 0` for an immediate state check or omit it for bounded long-poll waiting.
+2. If `isActionable` is false, call `wait_for_action` again unless the topic is finalized or closed.
+3. If `isActionable` is true, call `get_context` with the participant id.
+4. Perform the action named by the response:
+   - `submit_debate_message`: call `submit_message` with `debateSignal`.
+   - `submit_review_feedback`: call `submit_message` with feedback content.
+   - `submit_report_draft`: call `submit_report_draft`.
+   - `submit_report_final`: call `submit_report_final`.
+5. Return to `wait_for_action` unless the topic is finalized or closed.
 
 Waiting policy:
 
-- default `wait_for_turn` timeout is `30000` milliseconds
-- on `wakeupReason: "timeout"`, the app should immediately re-call `wait_for_turn`
+- default `wait_for_action` timeout is `30000` milliseconds
+- `timeoutMs = 0` evaluates current state and returns immediately
+- on `wakeupReason: "timeout"`, the app should immediately re-call `wait_for_action` unless the topic is finalized or closed
 - `topicVersion` should be carried forward through `afterTopicVersion` when available to avoid stale wakeups
-- when `wait_for_turn` wakes with `phase` beyond `debating`, the app must stop waiting for another debate turn
 
-This waiting loop is the normative app-participant behavior. Prompt-only polling and app-specific background automation are not part of the product contract.
+This action loop is the normative app-participant behavior. Prompt-only polling and app-specific background automation are not part of the product contract. The removed `get_turn`, `is_my_turn`, and `wait_for_turn` tools are not compatibility paths.
+
+### Current Task Context
+
+`get_context` returns instructions for the caller's current actionable task:
+
+- `submit_debate_message`: debate instructions with `debateSignal` guidance
+- `submit_review_feedback`: review instructions against the current draft
+- `submit_report_draft`: draft report instructions
+- `submit_report_final`: final report instructions using the draft and collected feedback
+
+The final debate message is not reused as a draft report. App-submitted report body content is stored only on the report record.
 
 ---
 
@@ -148,7 +164,7 @@ Speak only when it is your turn. Otherwise return an empty response.
 When submitting a debate message, set debateSignal to "ready_to_finalize" only if the discussion has enough material for the report and you have no unresolved objection that requires another debate turn. Otherwise set debateSignal to "continue".
 ```
 
-For `app` participants, the orchestration layer should normally call the model only after `wait_for_turn` or `is_my_turn` confirms that the participant may speak. The "Otherwise return an empty response" rule remains a safety guard for stale or misrouted generation attempts, not the primary waiting mechanism.
+For `app` participants, the orchestration layer should normally call the model only after `wait_for_action` confirms the current task. The "Otherwise return an empty response" rule remains a safety guard for stale or misrouted debate-generation attempts, not the primary waiting mechanism.
 
 Provider participants are server-driven. During debate, the provider auto-speak path requests a JSON object with `content` and `debateSignal`; valid `debateSignal` values are `continue` and `ready_to_finalize`. Plain-text provider responses remain accepted for compatibility and are submitted with `debateSignal = "continue"`.
 
@@ -170,7 +186,7 @@ Controlled by `LLM_SALON_OUTPUT_LANGUAGE` env var. Source of truth: `src/llm/out
 
 ### Scope
 
-- Applied **only** to the system prompt for the reporter model during `drafting`, `reviewing` (feedback summary), and `finalizing` phases.
+- Applied **only** to reporter task instructions during `drafting`, `reviewing` (feedback summary), and `finalizing` phases, whether the reporter is server-driven or app-driven through `get_context`.
 - Debate-phase LLM calls always use the English system prompt (§System Prompt).
 - Appended line to the report system prompt:
 

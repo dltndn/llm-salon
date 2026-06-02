@@ -26,8 +26,10 @@ const FORBIDDEN_ANONYMOUS_KEYS = new Set([
 ]);
 
 const ALLOWED_ANONYMOUS_KEYS = new Set([
+  'action',
   'anonymousName',
   'anonymous_name',
+  'assignedMember',
   'content',
   'contentHash',
   'contextMessages',
@@ -49,6 +51,7 @@ const ALLOWED_ANONYMOUS_KEYS = new Set([
   'finalContent',
   'host',
   'id',
+  'isActionable',
   'isMyTurn',
   'joinOrder',
   'kind',
@@ -72,6 +75,7 @@ const ALLOWED_ANONYMOUS_KEYS = new Set([
   'project',
   'projectId',
   'projects',
+  'reportId',
   'reporterMember',
   'reporterParticipantId',
   'roundIndex',

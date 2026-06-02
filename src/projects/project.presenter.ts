@@ -21,7 +21,9 @@ export function serializeProject(
     status: project.status,
     createdAt: project.createdAt,
     updatedAt: project.updatedAt,
-    topics: project.topics?.map((topic) => serializeTopic(topic, audience)),
+    topics: project.topics?.map((topic) =>
+      serializeTopic(topic, audience, project.participants),
+    ),
     participants: project.participants?.map((participant) =>
       serializeParticipant(participant, audience),
     ),

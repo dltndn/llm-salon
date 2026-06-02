@@ -1,6 +1,6 @@
 # ADR-001: App Participant Turn Waiting
 
-Status: Accepted
+Status: Superseded by `docs/decisions/ADR-005-app-report-production.md`
 Date: 2026-05-27
 Related proposal:
 - `docs/proposals/001-app-turn-waiting.md`

@@ -15,6 +15,7 @@ import { ProjectsModule } from './projects/projects.module';
 import { ReportsModule } from './reports/reports.module';
 import { SseModule } from './sse/sse.module';
 import { TopicsModule } from './topics/topics.module';
+import { ActionsModule } from './actions/actions.module';
 import { TurnsModule } from './turns/turns.module';
 
 @Module({
@@ -27,6 +28,7 @@ import { TurnsModule } from './turns/turns.module';
     TopicsModule,
     ParticipantsModule,
     TurnsModule,
+    ActionsModule,
     MessagesModule,
     PromptModule,
     ReportsModule,

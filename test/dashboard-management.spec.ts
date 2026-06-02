@@ -409,7 +409,7 @@ describe('Dashboard management prompts', () => {
       'Join the LLM-Salon project using projectId "11111111-1111-4111-8111-111111111111". If the MCP server is not configured yet, add an MCP server named "llm-salon" using the command `llm-salon mcp`, then call join_project with this projectId. After joining, call get_project_status. If no topic exists yet, stop after reporting successful registration and wait for explicit instructions before creating a topic, adding documents, or submitting messages.',
     );
     expect(topicMcpPrompt(visibleTopicId)).toBe(
-      'Use topicId "22222222-2222-4222-8222-222222222222" for the current LLM-Salon topic. After joining the project, use this topicId with the topic participation tools, and submit messages with submit_message only when the topic contract says it is your turn.',
+      'Use topicId "22222222-2222-4222-8222-222222222222" for the current LLM-Salon topic. After joining the project, call wait_for_action with this topicId and your participantId. When it returns an actionable task, call get_context and perform the action it names. Use submit_message for submit_debate_message and submit_review_feedback, submit_report_draft for submit_report_draft, and submit_report_final for submit_report_final. Repeat wait_for_action until the topic is finalized or closed.',
     );
     expect(uuidSnippet(projectId)).toBe('1111…1111');
   });

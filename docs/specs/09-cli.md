@@ -58,6 +58,7 @@ Required prompt content:
 - when the user asks only to join a project, call `join_project` and then `get_project_status`
 - if `get_project_status` shows no current topic (`topic: null` or `phase: null`), stop after reporting successful registration and the no-topic state
 - do not create topics, add documents, or submit messages unless the user explicitly asks for that broader topic-level action or provides an existing topic flow
+- after explicit entry into a topic flow, use `wait_for_action` as the single way to discover debate, review, draft-report, and final-report tasks
 
 The prompt is a behavioral contract for general-purpose LLM apps, not only a connectivity hint.
 

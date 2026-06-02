@@ -179,10 +179,22 @@ describe('MCP stdio server', () => {
         outputSchema: expect.objectContaining({ type: 'object' }),
       }),
       expect.objectContaining({
-        name: 'wait_for_turn',
+        name: 'wait_for_action',
+        outputSchema: expect.objectContaining({ type: 'object' }),
+      }),
+      expect.objectContaining({
+        name: 'submit_report_draft',
+        outputSchema: expect.objectContaining({ type: 'object' }),
+      }),
+      expect.objectContaining({
+        name: 'submit_report_final',
         outputSchema: expect.objectContaining({ type: 'object' }),
       }),
       ]),
+    );
+    const toolNames = (tools.result?.tools ?? []).map((tool) => tool.name);
+    expect(toolNames).not.toEqual(
+      expect.arrayContaining(['get_turn', 'is_my_turn', 'wait_for_turn']),
     );
 
     const response = await child.request('tools/call', {
@@ -271,29 +283,14 @@ describe('MCP stdio server', () => {
       currentMember: string;
       documents: unknown[];
     }>(child, 'get_project_status', { projectIdOrSlug: project.projectId });
-    const turn = await callTool<{
-      isMyTurn: boolean;
+    const waitForAction = await callTool<{
+      isActionable: boolean;
+      action: string;
+      assignedMember: string;
+      wakeupReason: string;
       mySelf: string;
       topicVersion: number;
-    }>(child, 'get_turn', {
-      projectId: project.projectId,
-      topicId: topic.topicId,
-      participantId: participant.participantId,
-    });
-    const isMyTurn = await callTool<{ isMyTurn: boolean }>(
-      child,
-      'is_my_turn',
-      {
-        projectId: project.projectId,
-        topicId: topic.topicId,
-        participantId: participant.participantId,
-      },
-    );
-    const waitForTurn = await callTool<{
-      isMyTurn: boolean;
-      currentMember: string;
-      wakeupReason: string;
-    }>(child, 'wait_for_turn', {
+    }>(child, 'wait_for_action', {
       projectId: project.projectId,
       topicId: topic.topicId,
       participantId: participant.participantId,
@@ -305,6 +302,7 @@ describe('MCP stdio server', () => {
     }>(child, 'get_context', {
       projectId: project.projectId,
       topicId: topic.topicId,
+      participantId: participant.participantId,
     });
     const submitted = await callTool<{
       messageId: string;
@@ -316,13 +314,14 @@ describe('MCP stdio server', () => {
       participantId: participant.participantId,
       content: 'I prefer the direct implementation.',
     });
-    const turnAfterSubmit = await callTool<{ topicVersion: number }>(
+    const actionAfterSubmit = await callTool<{ topicVersion: number }>(
       child,
-      'get_turn',
+      'wait_for_action',
       {
         projectId: project.projectId,
         topicId: topic.topicId,
         participantId: participant.participantId,
+        timeoutMs: 0,
       },
     );
     const report = await callTool<{ status: string; draftAvailable: boolean }>(
@@ -347,12 +346,12 @@ describe('MCP stdio server', () => {
       currentMember: 'Member A',
     });
     expect(projectStatus.documents).toHaveLength(2);
-    expect(turn).toMatchObject({ isMyTurn: true, mySelf: 'Member A' });
-    expect(isMyTurn.isMyTurn).toBe(true);
-    expect(waitForTurn).toMatchObject({
-      isMyTurn: true,
-      currentMember: 'Member A',
-      wakeupReason: 'turn_changed',
+    expect(waitForAction).toMatchObject({
+      isActionable: true,
+      action: 'submit_debate_message',
+      assignedMember: 'Member A',
+      mySelf: 'Member A',
+      wakeupReason: 'immediate',
     });
     expect(context.systemPrompt).toContain('You are Member A');
     expect(context.contextMessages.some((item) => item.role === 'assistant')).toBe(
@@ -362,7 +361,9 @@ describe('MCP stdio server', () => {
       nextMember: 'Member A',
       phaseAfter: 'debating',
     });
-    expect(turnAfterSubmit.topicVersion).toBeGreaterThan(turn.topicVersion);
+    expect(actionAfterSubmit.topicVersion).toBeGreaterThan(
+      waitForAction.topicVersion,
+    );
     expect(report).toEqual({
       status: 'none',
       draftAvailable: false,
@@ -370,8 +371,7 @@ describe('MCP stdio server', () => {
     });
     expect(JSON.stringify({
       projectStatus,
-      turn,
-      isMyTurn,
+      waitForAction,
       context,
       submitted,
       report,
@@ -559,6 +559,97 @@ describe('MCP stdio server', () => {
       message: 'Wrong turn. Current participant: Member A',
       statusCode: 409,
     });
+  });
+
+  it('submits app report draft and final through MCP tools', async () => {
+    const prisma = new InMemoryPrisma();
+    app = await createTestApp(prisma as unknown as PrismaService);
+    await app.listen(0, '127.0.0.1');
+
+    const address = app.getHttpServer().address() as { port: number };
+    await writeFile(
+      join(tempHome, 'server.lock'),
+      `${JSON.stringify({ pid: process.pid, port: address.port })}\n`,
+      'utf8',
+    );
+
+    child = spawnMcp(tempHome);
+    await initializeChild(child);
+
+    const project = await callTool<{ projectId: string; slug: string }>(
+      child,
+      'create_project',
+      { name: 'MCP Report Flow' },
+    );
+    const reporter = await callTool<{ participantId: string }>(child, 'join_project', {
+      projectId: project.projectId,
+      clientName: 'Reporter',
+      modelName: 'GPT-5',
+    });
+    const reviewer = await callTool<{ participantId: string }>(child, 'join_project', {
+      projectId: project.projectId,
+      clientName: 'Reviewer',
+      modelName: 'GPT-5',
+    });
+    const topic = await callTool<{ topicId: string }>(child, 'create_topic', {
+      projectId: project.projectId,
+      title: 'MCP report topic',
+      mode: 'consensus',
+      maxTurns: 2,
+    });
+
+    await callTool(child, 'submit_message', {
+      projectId: project.projectId,
+      topicId: topic.topicId,
+      participantId: reporter.participantId,
+      content: 'Opening',
+    });
+    await callTool(child, 'submit_message', {
+      projectId: project.projectId,
+      topicId: topic.topicId,
+      participantId: reviewer.participantId,
+      content: 'Closing',
+    });
+
+    const draft = await callTool<{ reportId: string; phaseAfter: string }>(
+      child,
+      'submit_report_draft',
+      {
+        projectId: project.projectId,
+        topicId: topic.topicId,
+        participantId: reviewer.participantId,
+        content: '# Draft\n\nBody',
+      },
+    );
+
+    expect(draft.phaseAfter).toBe('reviewing');
+
+    await callTool(child, 'submit_message', {
+      projectId: project.projectId,
+      topicId: topic.topicId,
+      participantId: reporter.participantId,
+      content: 'Feedback from A',
+    });
+    await callTool(child, 'submit_message', {
+      projectId: project.projectId,
+      topicId: topic.topicId,
+      participantId: reviewer.participantId,
+      content: 'Feedback from B',
+    });
+
+    const final = await callTool<{ reportId: string; phaseAfter: string; filePath: string }>(
+      child,
+      'submit_report_final',
+      {
+        projectId: project.projectId,
+        topicId: topic.topicId,
+        participantId: reviewer.participantId,
+        content: '# Final\n\nDone',
+      },
+    );
+
+    expect(final.phaseAfter).toBe('finalized');
+    expect(final.filePath).toContain(topic.topicId);
   });
 
   it('rejects document file paths and binary content through add_document', async () => {

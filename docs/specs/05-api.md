@@ -32,11 +32,12 @@ Default project-detail responses exclude hidden topics (`topics.deleted_at IS NO
 | `DELETE` | `/api/projects/:slug/participants/:participantId` | Remove a participant from future participation (`status = removed`) |
 | `DELETE` | `/api/projects/:slug/topics/:topicId` | Hide a topic from normal human-facing flows (`deleted_at`) |
 | `POST` | `/api/projects/:slug/topics/:topicId/messages` | Submit a message |
-| `GET` | `/api/projects/:slug/topics/:topicId/context` | Get LLM context payload (`?audience=human\|anonymous`) |
-| `GET` | `/api/projects/:slug/topics/:topicId/turn` | Get current turn (`?participantId=…`) |
-| `GET` | `/api/projects/:slug/topics/:topicId/turn/wait` | Wait for turn or topic change (`?participantId=…&afterTopicVersion=…&timeoutMs=…`) |
+| `GET` | `/api/projects/:slug/topics/:topicId/context` | Get caller-centered LLM context payload (`?participantId=…&audience=human\|anonymous`) |
+| `GET` | `/api/projects/:slug/topics/:topicId/action/wait` | Wait for the caller's next actionable task (`?participantId=…&afterTopicVersion=…&timeoutMs=…`) |
 | `POST` | `/api/projects/:slug/documents` | Upload a document (multipart or inline JSON) |
 | `GET` | `/api/projects/:slug/topics/:topicId/report` | Get report status/content |
+| `POST` | `/api/projects/:slug/topics/:topicId/report/draft` | Submit an app reporter's draft report artifact |
+| `POST` | `/api/projects/:slug/topics/:topicId/report/final` | Submit an app reporter's final report artifact |
 | `POST` | `/api/projects/:slug/close` | Close a project |
 
 ---
@@ -115,8 +116,10 @@ Behavior:
 - During `debating`, the field is stored on the `statement` message.
 - For `consensus` topics, after each `debating`-phase `statement`, the server checks every active participant's latest `debateSignal`.
 - A `waiting` participant that belongs to the current round must receive their first assigned turn before early stop can complete.
-- If every active participant's latest signal is `ready_to_finalize`, the topic transitions to `drafting` immediately and the response returns `phaseAfter: "drafting"` with `nextMember: null`.
-- For `options` topics, and for feedback/report/system messages, the field does not trigger early stop.
+- If every active participant's latest signal is `ready_to_finalize`, the topic transitions to `drafting` immediately and the response returns `phaseAfter: "drafting"` with `nextMember: null`. Active providers remain preferred reporters. If no active provider exists, the current turn holder becomes the app reporter.
+- During `reviewing`, the request stores one `feedback` message per active participant. Every active participant, including the reporter, must submit feedback before the topic advances to `finalizing`.
+- For `options` topics, and for feedback/system messages, `debateSignal` does not trigger early stop.
+- Report draft and final body content are not accepted through this endpoint.
 
 Response:
 
@@ -128,9 +131,9 @@ Response:
 }
 ```
 
-### `GET /api/projects/:slug/topics/:topicId/turn/wait`
+### `GET /api/projects/:slug/topics/:topicId/action/wait`
 
-Purpose: allow `app` participants to wait for their next actionable turn without polling `get_turn` in a tight loop.
+Purpose: provide the single app-facing way to discover and wait for the caller's next actionable task.
 
 Required query parameters:
 
@@ -148,32 +151,49 @@ Default timeout:
 
 Behavior:
 
-- If the participant already holds the current turn, return immediately.
-- If the topic phase is already beyond the point where no further debate turn is expected for the caller, return immediately with the latest state.
+- `timeoutMs = 0` evaluates current state and returns immediately.
+- If the participant already has actionable work, return immediately.
 - Otherwise keep the request open until one of the following happens:
-  - the participant becomes the current turn holder
+  - the participant becomes actionable
   - the topic version changes after `afterTopicVersion`
   - the topic phase changes
-  - the project or topic reaches a closed/finalized state that should stop waiting
+  - the project or topic reaches a closed/finalized state
   - the timeout expires
+- In `debating`, only the current speaker is actionable with `action: "submit_debate_message"`.
+- In `drafting`, only an app reporter is actionable with `action: "submit_report_draft"`. Provider-backed drafting remains server-driven.
+- In `reviewing`, every active participant without feedback is independently actionable with `action: "submit_review_feedback"`. If the caller is actionable, `assignedMember` is the caller. Do not return a pending-member list.
+- In `finalizing`, only an app reporter is actionable with `action: "submit_report_final"`. Provider-backed finalization remains server-driven.
+- In `finalized` and `closed`, return a non-actionable closed response.
+- Increment `topicVersion` for every committed state change that can alter action discovery, including message creation, turn advance, phase transitions, and report artifact submissions.
 
 Response:
 
 ```json
 {
-  "isMyTurn": false,
-  "currentMember": "Member B",
-  "phase": "debating",
-  "currentRound": 2,
-  "currentTurnIndex": 5,
-  "serverTime": "2026-05-21T08:00:00.000Z",
-  "topicVersion": 19,
-  "wakeupReason": "turn_changed"
+  "isActionable": true,
+  "action": "submit_report_draft",
+  "assignedMember": "Member A",
+  "mySelf": "Member A",
+  "phase": "drafting",
+  "currentRound": 5,
+  "currentTurnIndex": 11,
+  "serverTime": "2026-06-01T00:00:00.000Z",
+  "topicVersion": 23,
+  "wakeupReason": "immediate"
 }
 ```
 
+`action` values:
+
+- `submit_debate_message`
+- `submit_review_feedback`
+- `submit_report_draft`
+- `submit_report_final`
+- `none`
+
 `wakeupReason` values:
 
+- `immediate`
 - `turn_changed`
 - `phase_changed`
 - `topic_updated`
@@ -183,7 +203,70 @@ Response:
 Client expectation:
 
 - Clients should treat this as a bounded long-poll.
-- On `timeout`, the client should immediately call the same endpoint again unless the returned phase means no further debate turn is expected.
+- On `timeout`, the client should immediately call the same endpoint again unless the topic is finalized or closed.
+- A non-actionable `timeoutMs = 0` response returns `isActionable: false`, `action: "none"`, and `wakeupReason: "timeout"`.
+
+### `GET /api/projects/:slug/topics/:topicId/context`
+
+Purpose: return anonymized context and task-appropriate instructions for the caller's current actionable task.
+
+Required query parameters:
+
+- `participantId`
+
+Behavior:
+
+- Uses the same action semantics as `/action/wait`.
+- Returns debate instructions with `debateSignal` guidance for `submit_debate_message`.
+- Returns feedback instructions against the current draft for `submit_review_feedback`.
+- Returns draft report instructions for `submit_report_draft`.
+- Returns final report instructions using the draft and collected feedback for `submit_report_final`.
+- Rejects callers that do not currently have actionable work.
+
+### `POST /api/projects/:slug/topics/:topicId/report/draft`
+
+Purpose: submit an app reporter's draft report artifact.
+
+Request body:
+
+```json
+{
+  "participantId": "…",
+  "content": "…"
+}
+```
+
+Behavior:
+
+- Valid only in `drafting`.
+- Requires `participantId` to match the topic reporter.
+- Stores `content` in `reports.draft_content`.
+- Advances the topic to `reviewing`.
+- Emits the existing report draft and phase events after commit.
+- Does not create a topic message for the report body.
+
+### `POST /api/projects/:slug/topics/:topicId/report/final`
+
+Purpose: submit an app reporter's final report artifact.
+
+Request body:
+
+```json
+{
+  "participantId": "…",
+  "content": "…"
+}
+```
+
+Behavior:
+
+- Valid only in `finalizing`.
+- Requires `participantId` to match the topic reporter.
+- Stores `content` in `reports.final_content`.
+- Writes the Markdown report file using the existing local report storage behavior.
+- Advances the topic to `finalized`.
+- Emits the existing report and phase events after commit.
+- Does not create a topic message for the report body.
 
 ---
 
@@ -206,7 +289,7 @@ Client expectation:
 | `project.closed` | `{ projectId }` |
 
 > All SSE payloads shown above use `displayName` (human-facing). The SSE channel is for browser consumption only. MCP responses use `anonymous_name`.
-> App participants do not consume this browser SSE stream. They wait through `/api/projects/:slug/topics/:topicId/turn/wait` via MCP.
+> App participants do not consume this browser SSE stream. They wait through `/api/projects/:slug/topics/:topicId/action/wait` via MCP.
 
 ---
 
@@ -232,7 +315,7 @@ Join the LLM-Salon project using projectId "<PROJECT_ID>". If the MCP server is 
 Topic prompt copy text:
 
 ```text
-Use topicId "<TOPIC_ID>" for the current LLM-Salon topic. After joining the project, use this topicId with the topic participation tools, and submit messages with submit_message only when the topic contract says it is your turn.
+Use topicId "<TOPIC_ID>" for the current LLM-Salon topic. After joining the project, call wait_for_action with this topicId and your participantId. When it returns an actionable task, call get_context and perform the action it names. Use submit_message for submit_debate_message and submit_review_feedback, submit_report_draft for submit_report_draft, and submit_report_final for submit_report_final. Repeat wait_for_action until the topic is finalized or closed.
 ```
 
 The copied prompt text is always English, regardless of `LLM_SALON_OUTPUT_LANGUAGE`.

@@ -100,7 +100,9 @@ llm-salon/
 
 ### `reports/`
 - Drives the report pipeline: draft → feedback collection → final.
-- Calls `llm/` adapters for draft generation and finalization.
+- Selects a provider reporter first when an active provider exists; otherwise assigns the current app turn holder as reporter when an app-only topic leaves debate.
+- Calls `llm/` adapters for provider-backed draft generation and finalization.
+- Accepts explicit app-reporter draft and final artifact submissions.
 - Writes Markdown files to `LLM_SALON_HOME/projects/<slug>/reports/`.
 - Tracks status in the `reports` table.
 

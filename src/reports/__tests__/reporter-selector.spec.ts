@@ -31,7 +31,29 @@ describe('selectReporterParticipantId', () => {
     expect(reporterId).toBe('provider-1');
   });
 
-  it('ignores inactive providers and app participants', () => {
+  it('falls back to the current turn holder when no active provider exists', () => {
+    const reporterId = selectReporterParticipantId(
+      [
+        {
+          id: 'app-1',
+          joinOrder: 1,
+          participantType: ParticipantType.app,
+          status: ParticipantStatus.active,
+        },
+        {
+          id: 'provider-inactive',
+          joinOrder: 2,
+          participantType: ParticipantType.provider,
+          status: ParticipantStatus.inactive,
+        },
+      ],
+      'app-1',
+    );
+
+    expect(reporterId).toBe('app-1');
+  });
+
+  it('returns null when no provider or fallback is available', () => {
     const reporterId = selectReporterParticipantId([
       {
         id: 'app-1',

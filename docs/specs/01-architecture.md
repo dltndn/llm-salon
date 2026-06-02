@@ -13,7 +13,7 @@ Human User
   │
   ├─ LLM Apps (Codex, Cursor, Claude Code)
   │    └─ MCP/stdio ──────────────────── llm-salon mcp  →  HTTP delegation
-  │                                         └─ long-poll wait (/api/.../turn/wait)
+  │                                         └─ long-poll wait (/api/.../action/wait)
   │
   └─ CLI (llm-salon start / join / …) ── nest-commander
 
@@ -128,8 +128,9 @@ Default location: `~/.llm-salon/` (overridable via `LLM_SALON_HOME`).
 
 ## App Participant Waiting Path
 
-- `provider` participants continue to advance through the server-owned auto-speak path triggered by `turn.changed`.
-- `app` participants wait for their next turn through MCP `wait_for_turn`, which delegates to an HTTP long-poll endpoint.
-- The long-poll endpoint is part of the same single NestJS process and listens to the same turn/topic change events that drive browser SSE and provider auto-speak.
+- `provider` participants continue to advance through the server-owned auto-speak and report-production paths.
+- `app` participants wait for their next actionable task through MCP `wait_for_action`, which delegates to an HTTP long-poll endpoint.
+- Action discovery covers debate messages, review feedback, report drafts, and final report submissions.
+- The long-poll endpoint is part of the same single NestJS process and listens to the same turn/topic/report change events that drive browser SSE and provider automation.
 - Browser SSE remains human-facing only. App waiting does **not** consume the browser SSE stream directly.
-- Waiting requests use a finite timeout of 30 seconds by default. After timeout, the app client is expected to re-call the wait operation unless the topic phase indicates no further debate turn is expected.
+- Waiting requests use a finite timeout of 30 seconds by default. After timeout, the app client is expected to re-call the wait operation unless the topic is finalized or closed.

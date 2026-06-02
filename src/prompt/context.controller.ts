@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 
 import { Audience, RequestAudience } from '../common/audience';
 import { ContextPayloadService } from './context-payload.service';
@@ -11,8 +11,14 @@ export class ContextController {
   getContext(
     @Param('slug') slug: string,
     @Param('topicId') topicId: string,
+    @Query('participantId') participantId: string,
     @RequestAudience() audience: Audience,
   ) {
-    return this.contextPayloadService.getContext(slug, topicId, audience);
+    return this.contextPayloadService.getContext(
+      slug,
+      topicId,
+      participantId,
+      audience,
+    );
   }
 }

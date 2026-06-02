@@ -11,6 +11,7 @@ export type ReporterCandidate = Pick<
 
 export function selectReporterParticipantId(
   participants: ReporterCandidate[],
+  fallbackParticipantId?: string | null,
 ): string | null {
   const activeProviders = participants
     .filter(
@@ -20,5 +21,9 @@ export function selectReporterParticipantId(
     )
     .sort((left, right) => left.joinOrder - right.joinOrder);
 
-  return activeProviders[0]?.id ?? null;
+  if (activeProviders[0]?.id) {
+    return activeProviders[0].id;
+  }
+
+  return fallbackParticipantId ?? null;
 }

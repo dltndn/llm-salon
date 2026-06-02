@@ -22,6 +22,9 @@
 - Consensus reset: any active participant's later `continue` signal prevents early stop until unanimity is reached again.
 - Options mode: `ready_to_finalize` signals do not early-stop `options` topics.
 - Concurrent duplicate transitions are rejected.
+- App-only consensus readiness enters `drafting` without an active provider and assigns the consensus-completing current turn holder as reporter.
+- App-only configured round/turn limit completion enters `drafting` without an active provider and assigns the current turn holder as reporter.
+- Mixed app/provider topics preserve active-provider reporter preference.
 
 ### Context Profile Policy (`llm/context-policy.ts`)
 - For each profile (`low`, `medium`, `high`): verify token budget calculation, per-file size limit, per-project size limit.
@@ -35,9 +38,11 @@
 - Project creation → topic creation → participant registration → message submission flow.
 - SSE event delivery after message submission.
 - `409` response when a non-current participant attempts to submit.
-- Long-poll wait endpoint returns immediately when the caller already has the turn.
-- Long-poll wait endpoint wakes on turn change and returns updated `topicVersion` plus `wakeupReason`.
-- Long-poll wait endpoint times out cleanly and supports client re-call behavior.
+- Action-wait endpoint with `timeoutMs=0` returns the current action state immediately.
+- Action-wait endpoint wakes on turn or phase changes and returns updated `topicVersion` plus `wakeupReason`.
+- Action-wait endpoint times out cleanly and supports client re-call behavior.
+- App reporter draft submission stores report content, advances to `reviewing`, and does not create a report-body topic message.
+- App reporter final submission stores report content, writes the report file, advances to `finalized`, and does not create a report-body topic message.
 
 ### Database (Prisma)
 - Use `testcontainers` or a local PostgreSQL temporary schema.
@@ -46,7 +51,9 @@
 ### MCP (stdio)
 - Spawn the `llm-salon mcp` child process and run JSON-RPC message round-trips.
 - Verify tool response anonymization: no human-facing fields in any tool response.
-- Verify `wait_for_turn` blocks until wakeup or timeout and preserves the anonymous response contract.
+- Verify `wait_for_action` blocks until wakeup or timeout and preserves the anonymous response contract.
+- Verify removed tools `get_turn`, `is_my_turn`, and `wait_for_turn` are absent from the MCP tool list.
+- Verify `submit_report_draft` and `submit_report_final` reject wrong phases and non-reporters.
 - Verify a join-only MCP flow registers the app participant, allows project status inspection, and does not create a topic, add a document, or submit a message when no topic exists.
 - Verify `get_project_status` for a project with no current topic returns `topic: null`, `phase: null`, and no topic-scoped turn state.
 - Verify `llm-salon mcp install-prompt` clearly separates project registration from topic creation and message submission.
@@ -69,14 +76,26 @@ These specific scenarios must have permanent test coverage:
 |---|---|
 | Message submitted → SSE event | Exactly 1 SSE event emitted per message |
 | Two participants submit to the same turn concurrently | One succeeds; the other receives `409 Conflict` |
-| `is_my_turn` for the current turn holder | Returns `{ isMyTurn: true }` |
-| `is_my_turn` for a non-current participant | Returns `{ isMyTurn: false }` |
-| `wait_for_turn` when the caller already has the turn | Returns immediately with `isMyTurn: true` |
-| `wait_for_turn` after another participant submits a message | Returns with updated `topicVersion` and `wakeupReason: "turn_changed"` |
-| `wait_for_turn` timeout with no turn change | Returns `wakeupReason: "timeout"` and can be called again safely |
+| `wait_for_action(timeoutMs=0)` for the current debate turn holder | Returns immediately with `isActionable: true`, `action: "submit_debate_message"`, and `wakeupReason: "immediate"` |
+| `wait_for_action(timeoutMs=0)` for a non-actionable caller | Returns immediately with `isActionable: false`, `action: "none"`, and `wakeupReason: "timeout"` |
+| `wait_for_action` after another participant submits a message | Returns with updated `topicVersion` and `wakeupReason: "turn_changed"` |
+| `wait_for_action` timeout with no state change | Returns `wakeupReason: "timeout"` and can be called again safely |
 | `submit_message` with wrong participant | Returns `WRONG_TURN` error with current member's anonymous name |
 | `submit_message` with unanimous consensus readiness | Returns `{ nextMember: null, phaseAfter: "drafting" }` |
 | `submit_message` with a current-round waiting participant | Returns the waiting participant as `nextMember` and promotes them to `active` before consensus early stop can complete |
+| App-only unanimous consensus readiness | Enters `drafting` and assigns the consensus-completing current turn holder as reporter |
+| App-only configured debate limit completion | Enters `drafting` and assigns the current turn holder as reporter |
+| Mixed app/provider unanimous consensus readiness | Enters `drafting` and assigns an active provider as reporter |
+| `wait_for_action` for app reporter in `drafting` | Returns `action: "submit_report_draft"` |
+| `submit_report_draft` from non-reporter or wrong phase | Rejects the request without changing report content or topic phase |
+| `submit_report_draft` from app reporter | Stores draft content only on the report row and advances to `reviewing` |
+| `wait_for_action` for active participant without feedback | Returns `action: "submit_review_feedback"` and `assignedMember: mySelf` |
+| Reviewing feedback from reporter | Counts toward all-active-participants review completion |
+| `wait_for_action` for app reporter in `finalizing` | Returns `action: "submit_report_final"` |
+| `submit_report_final` from non-reporter or wrong phase | Rejects the request without changing report content, file state, or topic phase |
+| `submit_report_final` from app reporter | Stores final content only on the report row, writes the Markdown file, and advances to `finalized` |
+| Removed turn-discovery MCP tools | MCP tool list omits `get_turn`, `is_my_turn`, and `wait_for_turn` |
+| App report lifecycle MCP responses | Do not expose provider, client, model, or display identifiers |
 | Document upload exceeding profile limit | Returns `413` with descriptive message |
 | Dashboard message history | Shows `displayName` plus anonymous label in message headers only |
 | Dashboard with no topics | Still shows the project-level participant section |

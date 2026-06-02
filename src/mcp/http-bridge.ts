@@ -22,6 +22,7 @@ type ProjectDetails = ProjectStatus & {
     maxTurns: number | null;
     currentRound: number;
     currentTurnIndex: number;
+    reporterMember?: string | null;
   }>;
   participants?: Array<{ anonymousName: string }>;
 };
@@ -57,14 +58,14 @@ export class McpHttpBridge {
           return await this.addDocument(args);
         case 'get_context':
           return await this.getContext(args);
-        case 'get_turn':
-          return await this.getTurn(args);
-        case 'is_my_turn':
-          return await this.isMyTurn(args);
-        case 'wait_for_turn':
-          return await this.waitForTurn(args);
+        case 'wait_for_action':
+          return await this.waitForAction(args);
         case 'submit_message':
           return await this.submitMessage(args);
+        case 'submit_report_draft':
+          return await this.submitReportDraft(args);
+        case 'submit_report_final':
+          return await this.submitReportFinal(args);
         case 'get_report_status':
           return await this.getReportStatus(args);
       }
@@ -177,7 +178,7 @@ export class McpHttpBridge {
       currentTurnIndex: topic.currentTurnIndex,
       maxTurns: topic.maxTurns,
       currentMember: turn.currentMember,
-      reporterMember: null,
+      reporterMember: topic.reporterMember ?? null,
       participants: project.participants ?? [],
       topic: { title: topic.title, mode: topic.mode },
       documents,
@@ -238,45 +239,17 @@ export class McpHttpBridge {
     const baseUrl = await resolveRunningServerBaseUrl();
     const slug = await this.resolveProjectSlug(baseUrl, readString(args, 'projectId'));
     const topicId = readString(args, 'topicId');
+    const params = new URLSearchParams({
+      participantId: readString(args, 'participantId'),
+      audience: 'anonymous',
+    });
 
     return requestJson(
-      `${baseUrl}/api/projects/${slug}/topics/${topicId}/context?audience=anonymous`,
+      `${baseUrl}/api/projects/${slug}/topics/${topicId}/context?${params.toString()}`,
     );
   }
 
-  private async getTurn(args: Record<string, unknown>) {
-    const baseUrl = await resolveRunningServerBaseUrl();
-    const slug = await this.resolveProjectSlug(baseUrl, readString(args, 'projectId'));
-    const topicId = readString(args, 'topicId');
-    const participantId = readOptionalString(args, 'participantId');
-    const query = participantId
-      ? `?participantId=${encodeURIComponent(participantId)}&audience=anonymous`
-      : '?audience=anonymous';
-
-    return requestJson(
-      `${baseUrl}/api/projects/${slug}/topics/${topicId}/turn${query}`,
-    );
-  }
-
-  private async isMyTurn(args: Record<string, unknown>) {
-    const turn = (await this.getTurn(args)) as {
-      isMyTurn?: boolean;
-      currentMember: string | null;
-      phase: string;
-      serverTime: string;
-      topicVersion: number;
-    };
-
-    return {
-      isMyTurn: turn.isMyTurn === true,
-      currentMember: turn.currentMember,
-      phase: turn.phase,
-      serverTime: turn.serverTime,
-      topicVersion: turn.topicVersion,
-    };
-  }
-
-  private async waitForTurn(args: Record<string, unknown>) {
+  private async waitForAction(args: Record<string, unknown>) {
     const baseUrl = await resolveRunningServerBaseUrl();
     const slug = await this.resolveProjectSlug(baseUrl, readString(args, 'projectId'));
     const topicId = readString(args, 'topicId');
@@ -296,7 +269,41 @@ export class McpHttpBridge {
     }
 
     return requestJson(
-      `${baseUrl}/api/projects/${slug}/topics/${topicId}/turn/wait?${params.toString()}`,
+      `${baseUrl}/api/projects/${slug}/topics/${topicId}/action/wait?${params.toString()}`,
+    );
+  }
+
+  private async submitReportDraft(args: Record<string, unknown>) {
+    const baseUrl = await resolveRunningServerBaseUrl();
+    const slug = await this.resolveProjectSlug(baseUrl, readString(args, 'projectId'));
+    const topicId = readString(args, 'topicId');
+
+    return requestJson(
+      `${baseUrl}/api/projects/${slug}/topics/${topicId}/report/draft?audience=anonymous`,
+      {
+        method: 'POST',
+        body: {
+          participantId: readString(args, 'participantId'),
+          content: readString(args, 'content'),
+        },
+      },
+    );
+  }
+
+  private async submitReportFinal(args: Record<string, unknown>) {
+    const baseUrl = await resolveRunningServerBaseUrl();
+    const slug = await this.resolveProjectSlug(baseUrl, readString(args, 'projectId'));
+    const topicId = readString(args, 'topicId');
+
+    return requestJson(
+      `${baseUrl}/api/projects/${slug}/topics/${topicId}/report/final?audience=anonymous`,
+      {
+        method: 'POST',
+        body: {
+          participantId: readString(args, 'participantId'),
+          content: readString(args, 'content'),
+        },
+      },
     );
   }
 
@@ -406,14 +413,6 @@ function readString(args: Record<string, unknown>, key: string): string {
   }
 
   return value;
-}
-
-function readOptionalString(
-  args: Record<string, unknown>,
-  key: string,
-): string | undefined {
-  const value = args[key];
-  return typeof value === 'string' && value.trim() !== '' ? value : undefined;
 }
 
 function readOptionalNumber(

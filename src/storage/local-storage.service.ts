@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 
 import { Injectable } from '@nestjs/common';
@@ -12,6 +12,10 @@ const MAX_REPORT_FILE_COLLISION_RETRIES = 1_000;
 @Injectable()
 export class LocalStorageService {
   constructor(private readonly config: ConfigService) {}
+
+  async deleteReportFile(filePath: string): Promise<void> {
+    await unlink(filePath);
+  }
 
   async writeReportMarkdown(
     projectSlug: string,

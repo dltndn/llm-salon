@@ -42,11 +42,17 @@ describe('DomainExceptionFilter', () => {
     new DomainExceptionFilter().catch(error, host);
 
     expect(status).toHaveBeenCalledWith(expectedStatus);
-    expect(json).toHaveBeenCalledWith({
+    const expectedBody: Record<string, unknown> = {
       error: error.name,
       message: error.message,
       statusCode: expectedStatus,
-    });
+    };
+
+    if (error instanceof WrongTurnError) {
+      expectedBody.currentMember = error.currentMember;
+    }
+
+    expect(json).toHaveBeenCalledWith(expectedBody);
   });
 
   it('preserves DocumentTooLargeError guidance for anonymous callers', () => {

@@ -219,6 +219,27 @@ export class InMemoryPrisma {
 
       return Promise.resolve({ ...this.topics[index] });
     }),
+    updateMany: jest.fn(({ where, data }) => {
+      let count = 0;
+      this.topics = this.topics.map((topic) => {
+        if (where.id !== topic.id) {
+          return topic;
+        }
+
+        if (where.phase !== undefined && topic.phase !== where.phase) {
+          return topic;
+        }
+
+        count += 1;
+        return {
+          ...topic,
+          ...applyTopicUpdateData(topic, data),
+          updatedAt: new Date(),
+        };
+      });
+
+      return Promise.resolve({ count });
+    }),
   };
 
   readonly participant = {
@@ -466,14 +487,14 @@ export class InMemoryPrisma {
   };
 
   readonly report = {
-    findFirst: jest.fn(({ where }) =>
-      Promise.resolve(
-        this.reports.find(
-          (report) =>
-            report.projectId === where.projectId && report.topicId === where.topicId,
-        ) ?? null,
-      ),
-    ),
+    findFirst: jest.fn(({ where, select }) => {
+      const report =
+        this.reports.find((item) => this.matchesReportWhere(item, where)) ?? null;
+
+      return Promise.resolve(
+        report ? (select ? pickSelected(report, select) : { ...report }) : null,
+      );
+    }),
     findMany: jest.fn(({ where, take }) => {
       const matches = this.reports.filter(
         (report) =>
@@ -512,10 +533,57 @@ export class InMemoryPrisma {
 
       return Promise.resolve({ ...this.reports[index] });
     }),
+    updateMany: jest.fn(({ where, data }) => {
+      let count = 0;
+      this.reports = this.reports.map((report) => {
+        if (!this.matchesReportWhere(report, where)) {
+          return report;
+        }
+
+        count += 1;
+        return {
+          ...report,
+          ...data,
+          updatedAt: new Date(),
+        };
+      });
+
+      return Promise.resolve({ count });
+    }),
   };
 
   $transaction = jest.fn((callback) => callback(this));
   $queryRaw = jest.fn(() => Promise.resolve([]));
+
+  private matchesReportWhere(
+    report: Report,
+    where: {
+      id?: string;
+      projectId?: string;
+      topicId?: string;
+      status?: Report['status'];
+      draftContent?: string | null;
+      finalContent?: string | null;
+      filePath?: string | null;
+      NOT?: {
+        finalContent?: null;
+      };
+    },
+  ): boolean {
+    return (
+      (where.id === undefined || report.id === where.id) &&
+      (where.projectId === undefined || report.projectId === where.projectId) &&
+      (where.topicId === undefined || report.topicId === where.topicId) &&
+      (where.status === undefined || report.status === where.status) &&
+      (where.draftContent === undefined ||
+        report.draftContent === where.draftContent) &&
+      (where.finalContent === undefined ||
+        report.finalContent === where.finalContent) &&
+      (where.filePath === undefined || report.filePath === where.filePath) &&
+      (where.NOT?.finalContent === undefined ||
+        report.finalContent !== where.NOT.finalContent)
+    );
+  }
 
   private filterParticipants(where?: {
     projectId?: string;

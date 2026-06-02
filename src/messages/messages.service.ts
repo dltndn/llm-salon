@@ -115,6 +115,7 @@ export class MessagesService {
           projectSlug,
           topic,
           domainEvents,
+          currentTurnHolderParticipantId: currentTurn.currentParticipantId,
         });
 
         return { message, nextTurn: null, phaseAfter };

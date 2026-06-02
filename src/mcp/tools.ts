@@ -6,10 +6,10 @@ export type McpToolName =
   | 'create_topic'
   | 'add_document'
   | 'get_context'
-  | 'get_turn'
-  | 'is_my_turn'
-  | 'wait_for_turn'
+  | 'wait_for_action'
   | 'submit_message'
+  | 'submit_report_draft'
+  | 'submit_report_final'
   | 'get_report_status';
 
 type JsonSchema = Record<string, unknown>;
@@ -46,6 +46,11 @@ const emptyInputSchema = objectSchema({}, []);
 const topicInputSchema = objectSchema({
   projectId: stringField,
   topicId: stringField,
+});
+const topicParticipantInputSchema = objectSchema({
+  projectId: stringField,
+  topicId: stringField,
+  participantId: stringField,
 });
 const volatileFields = {
   serverTime: stringField,
@@ -88,18 +93,27 @@ export const MCP_TOOLS: McpToolDefinition[] = [
     description: 'Return anonymous project, topic, turn, participant, and document status.',
     inputSchema: objectSchema({ projectIdOrSlug: stringField }),
     outputSchema: objectSchema({
-      phase: stringField,
-      mode: stringField,
-      currentRound: numberField,
+      phase: { type: ['string', 'null'] },
+      mode: { type: ['string', 'null'] },
+      currentRound: { type: ['number', 'null'] },
       maxRounds: { type: ['number', 'null'] },
-      currentTurnIndex: numberField,
+      currentTurnIndex: { type: ['number', 'null'] },
       maxTurns: { type: ['number', 'null'] },
       currentMember: optionalStringField,
       reporterMember: optionalStringField,
       participants: { type: 'array' },
-      topic: objectSchema({ title: stringField, mode: stringField }),
+      topic: {
+        type: ['object', 'null'],
+        properties: {
+          title: stringField,
+          mode: stringField,
+        },
+        required: ['title', 'mode'],
+        additionalProperties: false,
+      },
       documents: { type: 'array' },
       ...volatileFields,
+      topicVersion: { type: ['number', 'null'] },
     }),
   },
   {
@@ -148,55 +162,18 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'get_context',
-    description: 'Return the anonymized LLM context payload for a topic.',
-    inputSchema: topicInputSchema,
+    description:
+      'Return anonymized context and task-appropriate instructions for the caller.',
+    inputSchema: topicParticipantInputSchema,
     outputSchema: objectSchema({
       systemPrompt: stringField,
       contextMessages: { type: 'array' },
     }),
   },
   {
-    name: 'get_turn',
-    description: 'Return the current anonymous turn status.',
-    inputSchema: objectSchema(
-      {
-        projectId: stringField,
-        topicId: stringField,
-        participantId: stringField,
-      },
-      ['projectId', 'topicId'],
-    ),
-    outputSchema: objectSchema(
-      {
-        currentMember: optionalStringField,
-        phase: stringField,
-        currentRound: numberField,
-        currentTurnIndex: numberField,
-        isMyTurn: booleanField,
-        mySelf: optionalStringField,
-        ...volatileFields,
-      },
-      ['currentMember', 'phase', 'currentRound', 'currentTurnIndex', 'serverTime', 'topicVersion'],
-    ),
-  },
-  {
-    name: 'is_my_turn',
-    description: 'Return whether a participant currently holds the turn.',
-    inputSchema: objectSchema({
-      projectId: stringField,
-      topicId: stringField,
-      participantId: stringField,
-    }),
-    outputSchema: objectSchema({
-      isMyTurn: booleanField,
-      currentMember: optionalStringField,
-      phase: stringField,
-      ...volatileFields,
-    }),
-  },
-  {
-    name: 'wait_for_turn',
-    description: 'Wait until a participant holds the turn or the wait times out.',
+    name: 'wait_for_action',
+    description:
+      'Wait until the caller has an actionable task or the wait times out.',
     inputSchema: objectSchema(
       {
         projectId: stringField,
@@ -208,8 +185,9 @@ export const MCP_TOOLS: McpToolDefinition[] = [
       ['projectId', 'topicId', 'participantId'],
     ),
     outputSchema: objectSchema({
-      isMyTurn: booleanField,
-      currentMember: optionalStringField,
+      isActionable: booleanField,
+      action: stringField,
+      assignedMember: optionalStringField,
       phase: stringField,
       currentRound: numberField,
       currentTurnIndex: numberField,
@@ -220,7 +198,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
   },
   {
     name: 'submit_message',
-    description: 'Submit a debate message for the current turn holder.',
+    description: 'Submit a debate or review feedback message.',
     inputSchema: objectSchema(
       {
         projectId: stringField,
@@ -238,6 +216,41 @@ export const MCP_TOOLS: McpToolDefinition[] = [
     }),
   },
   {
+    name: 'submit_report_draft',
+    description: 'Submit an app reporter draft report artifact.',
+    inputSchema: objectSchema(
+      {
+        projectId: stringField,
+        topicId: stringField,
+        participantId: stringField,
+        content: stringField,
+      },
+      ['projectId', 'topicId', 'participantId', 'content'],
+    ),
+    outputSchema: objectSchema({
+      reportId: stringField,
+      phaseAfter: stringField,
+    }),
+  },
+  {
+    name: 'submit_report_final',
+    description: 'Submit an app reporter final report artifact.',
+    inputSchema: objectSchema(
+      {
+        projectId: stringField,
+        topicId: stringField,
+        participantId: stringField,
+        content: stringField,
+      },
+      ['projectId', 'topicId', 'participantId', 'content'],
+    ),
+    outputSchema: objectSchema({
+      reportId: stringField,
+      phaseAfter: stringField,
+      filePath: stringField,
+    }),
+  },
+  {
     name: 'get_report_status',
     description: 'Return report availability and status for a topic.',
     inputSchema: topicInputSchema,
@@ -248,6 +261,7 @@ export const MCP_TOOLS: McpToolDefinition[] = [
         finalAvailable: booleanField,
         filePath: stringField,
         draftPreview: stringField,
+        finalContent: optionalStringField,
       },
       ['status', 'draftAvailable', 'finalAvailable'],
     ),

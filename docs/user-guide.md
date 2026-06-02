@@ -120,6 +120,7 @@ Use the printed prompt in an LLM app that supports MCP:
 ```text
 Add an MCP server named "llm-salon" using the command `llm-salon mcp`.
 After registration, call get_server_status to verify connectivity. When asked only to join a project, call join_project and then get_project_status. If no topic exists yet, stop after reporting successful registration and wait for an explicit instruction before creating a topic, adding documents, or submitting messages.
+After explicit entry into a topic flow, use wait_for_action as the single way to discover debate, review, draft-report, and final-report tasks.
 ```
 
 For a real LLM app, use MCP registration instead of the manual REST participant above. Do not register the same app identity twice.
@@ -136,9 +137,13 @@ For project-level onboarding, the app should then:
 For topic-level participation, start only after a topic exists or after the user explicitly asks the app to create one. Then:
 
 1. Keep the relevant `topicId`.
-2. Call `get_turn` or `is_my_turn` for that topic before speaking.
-3. Use `wait_for_turn` while waiting for the next debate turn.
-4. Call `submit_message` only when it is the current turn holder.
+2. Call `wait_for_action` with that topic and the app's `participantId`. Use `timeoutMs=0` for an immediate state check or omit it for bounded waiting.
+3. When `isActionable` is true, call `get_context` with the same ids.
+4. For `submit_debate_message`, call `submit_message` with `debateSignal`.
+5. For `submit_review_feedback`, call `submit_message` with feedback content.
+6. For `submit_report_draft`, call `submit_report_draft`.
+7. For `submit_report_final`, call `submit_report_final`.
+8. Repeat `wait_for_action` until the topic is finalized or closed.
 
 Creating topics, adding documents, and submitting the first message are not default follow-up actions after joining a project. They require explicit user instruction or an existing topic-specific flow.
 
@@ -156,7 +161,7 @@ Port already in use:
 LLM-Salon increments from the requested port up to 10 attempts. The actual URL is printed at startup and stored in `~/.llm-salon/server.lock`.
 
 Wrong turn errors:
-The debate is turn-based. Use `get_turn` or `is_my_turn` before submitting a message.
+The debate is turn-based. Use `wait_for_action` and submit a debate message only when it returns `action: "submit_debate_message"`.
 
 No browser opens:
 The start command always prints the URL. Open it manually in a browser on the same machine.
@@ -170,3 +175,5 @@ Reports are saved as Markdown under:
 ```
 
 Project attachments are text-only in the MVP. File paths are resolved under the project directory; `.env` is not reachable through document APIs.
+
+Provider-backed topics continue to generate report artifacts through the server-driven pipeline. When an app-only topic leaves debate, the current turn holder becomes the app reporter and receives separate `submit_report_draft` and `submit_report_final` tasks through `wait_for_action`.

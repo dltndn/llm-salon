@@ -45,7 +45,8 @@ Excluded from MVP: cloud sync, user accounts, moderator LLM, vector search, SPA 
 | **Anonymous Name** | The name used in all LLM-facing contexts. Format: `Member A`, `Member B`, … to prevent brand bias. |
 | **Turn** | The unit that tracks which participant currently holds the floor. Persisted in the `turns` table. |
 | **Round** | One full cycle through all active participants. A new round starts when every participant has had one turn. |
-| **Reporter** | The participant assigned to write the draft and final report during `drafting`/`finalizing` phases. |
+| **Reporter** | The participant assigned to write the draft and final report during `drafting`/`finalizing` phases. An active provider is preferred; when no active provider exists, an app participant may own report production. |
+| **Actionable Task** | Work currently assigned to an app participant: a debate message, review feedback, report draft, or final report submission. |
 | **Message** | A single utterance submitted by a participant during their turn. |
 | **Report** | The structured output produced after the debate. Stored as a Markdown file; metadata persisted in the `reports` table. |
 | **MCP** | Model Context Protocol (stdio transport). The interface used by LLM apps to call LLM-Salon tools. |

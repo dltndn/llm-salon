@@ -54,6 +54,9 @@ export class DomainExceptionFilter implements ExceptionFilter {
         !(exception instanceof MissingApiKeyError)
           ? 'Request conflicts with the current project state.'
           : maskLogMessage(exception.message),
+      ...(exception instanceof WrongTurnError
+        ? { currentMember: exception.currentMember }
+        : {}),
       statusCode,
     });
   }

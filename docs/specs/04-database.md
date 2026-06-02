@@ -42,7 +42,7 @@
 | `max_turns` | `int` | NULL | NULL = no limit |
 | `current_round` | `int` | NOT NULL, default `0` | |
 | `current_turn_index` | `int` | NOT NULL, default `0` | |
-| `reporter_participant_id` | `uuid` | FK → `participants.id`, NULL | Set when entering `drafting` |
+| `reporter_participant_id` | `uuid` | FK → `participants.id`, NULL | Report lifecycle owner; set when entering `drafting`; may reference a provider or app participant |
 | `deleted_at` | `timestamptz` | NULL | Non-null means hidden from normal dashboard and default project-detail topic lists; child records are preserved |
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 | `updated_at` | `timestamptz` | NOT NULL, default `now()` | |
@@ -124,7 +124,7 @@ Additional constraint: `UNIQUE(topic_id, turn_index)`.
 | `id` | `uuid` | PK | |
 | `project_id` | `uuid` | FK, NOT NULL | |
 | `topic_id` | `uuid` | FK, NOT NULL | |
-| `reporter_participant_id` | `uuid` | FK, NOT NULL | |
+| `reporter_participant_id` | `uuid` | FK, NOT NULL | Report lifecycle owner; may reference a provider or app participant |
 | `status` | `report_status` | NOT NULL, default `none` | |
 | `draft_content` | `text` | NULL | |
 | `final_content` | `text` | NULL | |
@@ -132,7 +132,7 @@ Additional constraint: `UNIQUE(topic_id, turn_index)`.
 | `created_at` | `timestamptz` | NOT NULL, default `now()` | |
 | `updated_at` | `timestamptz` | NOT NULL, default `now()` | |
 
-Note: One report row per topic. Uniqueness enforced at the application level.
+Note: One report row per topic. Uniqueness enforced at the application level. Draft and final report body content use this row as their single source of truth and are not duplicated into `messages`.
 
 ---
 

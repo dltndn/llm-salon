@@ -58,8 +58,8 @@ All ENUMs are defined as PostgreSQL ENUM types and mapped in Prisma.
 ### `message_kind`
 - `statement` — regular debate turn
 - `feedback` — reviewing-phase feedback on a draft
-- `report_draft` — draft report content
-- `report_final` — final report content
+- `report_draft` — reserved legacy enum value; report draft body content is stored on the report record
+- `report_final` — reserved legacy enum value; final report body content is stored on the report record
 - `system` — system-generated notice
 
 ### `debate_signal`
@@ -115,6 +115,23 @@ finalized ──[user explicitly closes]─────────────�
 
 Forbidden transitions (any other path) must raise `PhaseTransitionError`.
 
+### Reporter Ownership and Report Production
+
+- The reporter relationship means the participant that owns report production for the topic. The reporter may be a `provider` participant or an `app` participant.
+- When a topic enters `drafting`, active providers are preferred. If at least one active provider exists, preserve the server-driven provider report pipeline.
+- When a topic leaves debate with no active provider, the current turn holder becomes the app reporter. This applies whether debate ended through consensus readiness or configured round/turn limits. Store that participant in both `topics.reporter_participant_id` and `reports.reporter_participant_id`.
+- Validate report row creation or reuse before committing the phase transition. Preserve the one-report-per-topic safeguard.
+- The final debate message remains a `statement`. It is not reused as the report draft.
+- The same reporter owns both draft and final report production.
+- An app reporter submits draft and final content explicitly. The task remains open across wait timeouts and is not automatically reassigned.
+- Report draft and final content live only on the report record. Do not duplicate report body content as topic messages.
+
+### Reviewing Feedback
+
+- Reviewing feedback remains message-like participant input and uses the existing message submission path.
+- Every active participant, including the reporter, submits feedback once.
+- When every active participant has submitted feedback, the topic advances to `finalizing`.
+
 ### Topic Visibility
 
 - A topic with `deleted_at IS NOT NULL` is hidden from normal human-facing dashboard and default project-detail flows.
@@ -150,6 +167,7 @@ For `mode = consensus`, the system evaluates early-stop readiness after each suc
 - "Submit message → advance turn → emit event" is protected by a single DB transaction + row-level lock.
 - `SELECT … FOR UPDATE` on the `turns` row before validation and update.
 - Concurrent calls from MCP and HTTP result in the later call receiving `409 Conflict`.
+- Report artifact submission validates reporter ownership and phase inside the transaction before persisting content and advancing the topic.
 
 ---
 

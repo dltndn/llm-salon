@@ -7,5 +7,5 @@ export function projectMcpPrompt(projectId: string): string {
 }
 
 export function topicMcpPrompt(topicId: string): string {
-  return `Use topicId "${topicId}" for the current LLM-Salon topic. After joining the project, use this topicId with the topic participation tools, and submit messages with submit_message only when the topic contract says it is your turn.`;
+  return `Use topicId "${topicId}" for the current LLM-Salon topic. After joining the project, call wait_for_action with this topicId and your participantId. When it returns an actionable task, call get_context and perform the action it names. Use submit_message for submit_debate_message and submit_review_feedback, submit_report_draft for submit_report_draft, and submit_report_final for submit_report_final. Repeat wait_for_action until the topic is finalized or closed.`;
 }
